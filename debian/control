@@ -1,0 +1,24 @@
+Source: qoriq-rcw
+Section: utils
+Priority: optional
+Maintainer: Vincent Jardin <vjardin@free.fr>
+Build-Depends:
+ debhelper-compat (= 13),
+ meson,
+ ninja-build,
+ pkg-config,
+ libqoriq-rcw-dev,
+ libmcpp-dev,
+ pandoc
+Standards-Version: 4.6.2
+Homepage: https://github.com/vjardin/qoriq-rcw
+Rules-Requires-Root: no
+
+Package: qoriq-rcw
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: QorIQ Reset Configuration Word compiler (CLI)
+ qoriq-rcw compiles RCW source files into PBL/RCW binary images for
+ NXP QorIQ and Layerscape SoCs that use PBI format 2 (LS1028, LS1088,
+ LS2088, LX2160 families) and decompiles binary images back to RCW
+ source text. It is built on top of libqoriq-rcw.

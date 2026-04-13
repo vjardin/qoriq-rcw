@@ -206,3 +206,73 @@ jobs:
         with:
           name: dist-tarball
           path: qoriq-rcw/build/meson-dist/*.tar.xz
+
+  package:
+    # Build the qoriq-rcw .deb package for the supported Ubuntu LTS releases
+    # (24.04, 26.04) and the two latest Debian stable releases (12 bookworm,
+    # 13 trixie), on both amd64 and arm64. The CLI deb depends on
+    # libqoriq-rcw-dev at build time, so each cell first builds and installs
+    # libqoriq-rcw0 and libqoriq-rcw-dev from a sibling clone, then builds
+    # the qoriq-rcw deb against the installed library.
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - { name: amd64, runner: ubuntu-24.04 }
+          - { name: arm64, runner: ubuntu-24.04-arm }
+        distro:
+          - { image: 'ubuntu:24.04',    slug: 'ubuntu-24.04' }
+          - { image: 'ubuntu:26.04',    slug: 'ubuntu-26.04' }
+          - { image: 'debian:bookworm', slug: 'debian-12' }
+          - { image: 'debian:trixie',   slug: 'debian-13' }
+    runs-on: ${{ matrix.arch.runner }}
+    name: package (${{ matrix.distro.slug }}, ${{ matrix.arch.name }})
+    container:
+      image: ${{ matrix.distro.image }}
+    steps:
+      - name: Install build dependencies
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates git \
+            build-essential debhelper devscripts fakeroot \
+            meson ninja-build pkg-config \
+            libmcpp-dev libcmocka-dev pandoc
+
+      - name: Checkout qoriq-rcw
+        uses: actions/checkout@v4
+        with:
+          path: qoriq-rcw
+
+      - name: Clone libqoriq-rcw
+        run: |
+          git clone --depth 1 --branch "${LIBQORIQ_RCW_REF}" \
+            "${LIBQORIQ_RCW_REPO}" libqoriq-rcw
+
+      - name: Build libqoriq-rcw .debs
+        working-directory: libqoriq-rcw
+        run: dpkg-buildpackage -us -uc -b
+
+      - name: Install libqoriq-rcw .debs
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get install -y --no-install-recommends \
+            ./libqoriq-rcw0_*.deb ./libqoriq-rcw-dev_*.deb
+
+      - name: Build qoriq-rcw .deb
+        working-directory: qoriq-rcw
+        run: dpkg-buildpackage -us -uc -b
+
+      - name: Collect .deb artifacts
+        run: |
+          mkdir -p artifacts
+          mv libqoriq-rcw*_*.deb artifacts/ 2>/dev/null || true
+          mv qoriq-rcw_*.deb artifacts/
+          ls -la artifacts/
+
+      - name: Upload .deb packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: debs-${{ matrix.distro.slug }}-${{ matrix.arch.name }}
+          path: artifacts/*.deb
