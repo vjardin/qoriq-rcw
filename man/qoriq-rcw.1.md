@@ -28,7 +28,8 @@ QorIQ and Layerscape SoCs that use PBI format 2 (LS1028, LS1088, LS2088,
 LX2160 families). In reverse mode, it decompiles a binary image back to RCW
 source text.
 
-The input *.rcw* file is first run through the C preprocessor (**gcc -E**),
+The input *.rcw* file is first run through the embedded C preprocessor
+(mcpp, invoked in-process - no external toolchain required),
 which enables the use of **#include**, **#define**, and **#ifdef** directives
 in source files. The preprocessed output is then parsed and compiled into a
 binary image containing the PBL preamble, the 1024-bit RCW register data, PBI
@@ -202,7 +203,7 @@ PBI_LENGTH[287:276]
 
 # SEE ALSO
 
-**libqoriq-rcw**(3), **gcc**(1), **xxd**(1)
+**libqoriq-rcw**(3), **mcpp**(1), **xxd**(1)
 
 # AUTHORS
 
