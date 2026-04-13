@@ -1,0 +1,208 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright 2026 Free Mobile -- Vincent Jardin
+#
+# CI for qoriq-rcw.
+#
+# Builds the CLI tool against a freshly cloned libqoriq-rcw on a matrix
+# of {x86_64, ARM64} x {gcc, clang}. The cross-validation test is run
+# in a separate job that additionally clones the upstream nxp-qoriq/rcw
+# repository and verifies that qoriq-rcw produces byte-identical output
+# to rcw.py for every pbiformat=2 board configuration.
+
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  # libqoriq-rcw source repo + ref to clone for builds.
+  # Override per workflow dispatch or via repo variables if needed.
+  LIBQORIQ_RCW_REPO: https://github.com/${{ github.repository_owner }}/libqoriq-rcw.git
+  LIBQORIQ_RCW_REF: main
+
+  # Upstream NXP RCW repo (rcw.py + per-board .rcw configs).
+  RCW_UPSTREAM_REPO: https://github.com/nxp-qoriq/rcw.git
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+        cc: [gcc, clang]
+    runs-on: ${{ matrix.os }}
+    name: build (${{ matrix.os }}, ${{ matrix.cc }})
+    env:
+      CC: ${{ matrix.cc }}
+    steps:
+      - name: Checkout qoriq-rcw
+        uses: actions/checkout@v4
+        with:
+          path: qoriq-rcw
+
+      - name: Clone libqoriq-rcw
+        run: |
+          git clone --depth 1 --branch "${LIBQORIQ_RCW_REF}" \
+            "${LIBQORIQ_RCW_REPO}" libqoriq-rcw
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            meson ninja-build pkg-config \
+            libcmocka-dev pandoc \
+            gcc clang libclang-rt-18-dev
+
+      - name: Build libqoriq-rcw
+        working-directory: libqoriq-rcw
+        run: |
+          meson setup build -Db_sanitize=address,undefined -Db_lundef=false
+          meson compile -C build
+
+      - name: Build qoriq-rcw against sibling libqoriq-rcw
+        working-directory: qoriq-rcw
+        run: |
+          meson setup build \
+            -Dlibqoriq-rcw-path=../libqoriq-rcw \
+            -Db_sanitize=address,undefined \
+            -Db_lundef=false
+          meson compile -C build
+
+      - name: Upload meson logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: meson-logs-build-${{ matrix.os }}-${{ matrix.cc }}
+          path: |
+            libqoriq-rcw/build/meson-logs/
+            qoriq-rcw/build/meson-logs/
+
+  cross-validate:
+    # Required: this job must pass. It is kept separate from `build`
+    # so it can be skipped/disabled if the upstream nxp-qoriq/rcw
+    # repository is unreachable, without touching the build matrix.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+        cc: [gcc, clang]
+    runs-on: ${{ matrix.os }}
+    name: cross-validate (${{ matrix.os }}, ${{ matrix.cc }})
+    env:
+      CC: ${{ matrix.cc }}
+    steps:
+      - name: Checkout qoriq-rcw
+        uses: actions/checkout@v4
+        with:
+          path: qoriq-rcw
+
+      - name: Clone libqoriq-rcw
+        run: |
+          git clone --depth 1 --branch "${LIBQORIQ_RCW_REF}" \
+            "${LIBQORIQ_RCW_REPO}" libqoriq-rcw
+
+      - name: Clone upstream nxp-qoriq/rcw (rcw.py + board configs)
+        run: |
+          git clone --depth 1 "${RCW_UPSTREAM_REPO}" rcw
+
+      - name: Install build/test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            meson ninja-build pkg-config \
+            libcmocka-dev pandoc \
+            gcc clang libclang-rt-18-dev python3
+
+      - name: Build libqoriq-rcw
+        working-directory: libqoriq-rcw
+        run: |
+          meson setup build -Db_sanitize=address,undefined -Db_lundef=false
+          meson compile -C build
+
+      - name: Build qoriq-rcw with -Drcw-ref-dir
+        working-directory: qoriq-rcw
+        run: |
+          meson setup build \
+            -Dlibqoriq-rcw-path=../libqoriq-rcw \
+            -Drcw-ref-dir=../rcw \
+            -Db_sanitize=address,undefined \
+            -Db_lundef=false
+          meson compile -C build
+
+      - name: Run cross-validation test
+        working-directory: qoriq-rcw
+        run: meson test -C build --print-errorlogs
+
+      - name: Upload meson logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: meson-logs-cross-${{ matrix.os }}-${{ matrix.cc }}
+          path: qoriq-rcw/build/meson-logs/
+
+  shellcheck:
+    runs-on: ubuntu-24.04
+    name: shellcheck
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends shellcheck
+
+      - name: Run shellcheck on all shell scripts
+        run: |
+          shopt -s globstar nullglob
+          files=(**/*.sh)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No shell scripts found, skipping."
+            exit 0
+          fi
+          shellcheck --severity=style "${files[@]}"
+
+  dist:
+    runs-on: ubuntu-24.04
+    name: meson dist
+    steps:
+      - name: Checkout qoriq-rcw (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          path: qoriq-rcw
+
+      - name: Clone libqoriq-rcw
+        run: |
+          git clone --depth 1 --branch "${LIBQORIQ_RCW_REF}" \
+            "${LIBQORIQ_RCW_REPO}" libqoriq-rcw
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            meson ninja-build pkg-config libcmocka-dev pandoc
+
+      - name: Build libqoriq-rcw (so qoriq-rcw can find it)
+        working-directory: libqoriq-rcw
+        run: |
+          meson setup build
+          meson compile -C build
+
+      - name: meson setup qoriq-rcw
+        working-directory: qoriq-rcw
+        run: meson setup build -Dlibqoriq-rcw-path=../libqoriq-rcw
+
+      - name: meson dist
+        working-directory: qoriq-rcw
+        run: meson dist -C build --no-tests
+
+      - name: Upload dist tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-tarball
+          path: qoriq-rcw/build/meson-dist/*.tar.xz
