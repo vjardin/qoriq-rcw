@@ -1,5 +1,7 @@
 # qoriq-rcw
 
+[![CI](https://github.com/vjardin/qoriq-rcw/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/vjardin/qoriq-rcw/actions/workflows/ci.yml)
+
 Command-line tool for compiling and decompiling NXP QorIQ Reset Configuration Word (RCW) files.
 
 ## What is the RCW?
