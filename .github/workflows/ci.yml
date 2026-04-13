@@ -40,7 +40,7 @@ jobs:
       CC: ${{ matrix.cc }}
     steps:
       - name: Checkout qoriq-rcw
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: qoriq-rcw
 
@@ -74,7 +74,7 @@ jobs:
 
       - name: Upload meson logs on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: meson-logs-build-${{ matrix.os }}-${{ matrix.cc }}
           path: |
@@ -96,7 +96,7 @@ jobs:
       CC: ${{ matrix.cc }}
     steps:
       - name: Checkout qoriq-rcw
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: qoriq-rcw
 
@@ -139,7 +139,7 @@ jobs:
 
       - name: Upload meson logs on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: meson-logs-cross-${{ matrix.os }}-${{ matrix.cc }}
           path: qoriq-rcw/build/meson-logs/
@@ -149,7 +149,7 @@ jobs:
     name: shellcheck
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install shellcheck
         run: |
@@ -171,7 +171,7 @@ jobs:
     name: meson dist
     steps:
       - name: Checkout qoriq-rcw (full history)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
           path: qoriq-rcw
@@ -202,7 +202,7 @@ jobs:
         run: meson dist -C build --no-tests
 
       - name: Upload dist tarball
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: dist-tarball
           path: qoriq-rcw/build/meson-dist/*.tar.xz
@@ -241,7 +241,7 @@ jobs:
             libmcpp-dev libcmocka-dev pandoc
 
       - name: Checkout qoriq-rcw
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: qoriq-rcw
 
@@ -272,7 +272,7 @@ jobs:
           ls -la artifacts/
 
       - name: Upload .deb packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: debs-${{ matrix.distro.slug }}-${{ matrix.arch.name }}
           path: artifacts/*.deb
