@@ -41,6 +41,8 @@ endif
 datadir = get_option('prefix') / get_option('datadir') / 'qoriq-rcw'
 
 cli_sources = files(
+  'src/flash_db.c',
+  'src/flash_dump.c',
   'src/main.c',
   'src/runtime_dump.c',
   'src/soc_db.c',

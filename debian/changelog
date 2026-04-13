@@ -4,6 +4,13 @@ qoriq-rcw (0.2.0-1) unstable; urgency=medium
     running QorIQ/Layerscape board and emit a recompilable .rcw file
     with a header documenting the detected SoC, addresses, and the
     sanity checks performed.
+  * Add --dump-flash mode: read the on-flash RCW + PBI directly from
+    the boot medium. Auto-detects the device from PORSR1.RCW_SRC at
+    DCFG offset 0x0 and a /proc/mtd partition-name scan. Supports
+    --slot primary|fallback|all (with separate output files for
+    "all"), --device override, and full sanity battery (preamble,
+    load_cmd, checksum, terminator, rcw_consistent vs live RCWSR,
+    fallback_match across slots).
   * New qoriq-rcw-data binary package shipping the canonical .rcwi
     files vendored from nxp-qoriq/rcw.
 

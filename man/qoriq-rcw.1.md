@@ -24,6 +24,10 @@ qoriq-rcw - compile and decompile QorIQ Reset Configuration Word files
 **qoriq-rcw** **\-\-dump** **-o** *source* [**\-\-rcwi** *rcwi*]
 [**\-\-mem** *path*] [**\-\-force**]
 
+**qoriq-rcw** **\-\-dump-flash** **-o** *source* [**\-\-slot** *which*]
+[**\-\-device** *path*] [**\-\-rcwi** *rcwi*] [**\-\-mem** *path*]
+[**\-\-force**]
+
 # DESCRIPTION
 
 **qoriq-rcw** compiles RCW source files into PBL/RCW binary images for NXP
@@ -86,6 +90,29 @@ commands, and a CRC or Stop terminator.
     and the result of every sanity check. Requires root (for */dev/mem*).
     Mutually exclusive with **-r** and **-i**. PBI commands are not
     recoverable in this mode - only the 1024-bit RCW register state.
+
+**\-\-dump-flash**
+:   Read the RCW + PBI commands directly from the boot medium. Auto-
+    detects the boot device from PORSR1.RCW_SRC at DCFG offset 0x0
+    (mirrors the *CFG_RCW_SRC[3:0]* pin straps sampled at PORESET):
+    FlexSPI NOR/NAND -> */dev/mtd0* (or whichever MTD partition matches
+    *rcw* / *bl2* / *nor0* / *qspi* / *flash* / *boot* in
+    */proc/mtd*), SDHC1 -> */dev/mmcblk0*, SDHC2 -> */dev/mmcblk0boot0*,
+    I2C EEPROM -> must pass **\-\-device**. Recovers PBI commands too,
+    unlike **\-\-dump** which only sees post-execution RCW state.
+    Requires root.
+
+**\-\-slot** *which*
+:   With **\-\-dump-flash**, selects the bootrom slot to read:
+    *primary* (offset 0 or 0x1000), *fallback* (offset 0x800000 or
+    0x801000 - the bootrom retry location) or *all* (both, written to
+    separate files; see **-o**). Default: *primary*.
+
+**\-\-device** *path*
+:   With **\-\-dump-flash**, override the auto-detected boot device.
+    Required when **PORSR1.RCW_SRC** indicates I2C EEPROM (no Linux
+    convention for that). Otherwise honours the auto-detection result
+    if absent.
 
 **\-\-mem** *path*
 :   Override */dev/mem* with an alternate path. Intended for testing
@@ -246,6 +273,22 @@ PBI_LENGTH[287:276]
 00000010: 0009ab21 00000003 00000000 00000004 ...
 ...
 .end
+```
+
+Capture the RCW + PBI commands from the boot flash (recovers PBI
+that the runtime registers no longer hold):
+
+```
+# qoriq-rcw --dump-flash -o /tmp/flash.rcw
+qoriq-rcw: auto-detected boot device: /dev/mtd0 (override with --device)
+```
+
+Capture both bootrom slots (primary + fallback):
+
+```
+# qoriq-rcw --dump-flash --slot all -o /tmp/dump.rcw
+# ls /tmp/dump.*.rcw
+/tmp/dump.fallback.rcw  /tmp/dump.primary.rcw
 ```
 
 # SEE ALSO

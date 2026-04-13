@@ -14,6 +14,19 @@ if cmocka_dep.found()
     include_directories : test_inc,
     dependencies : [cmocka_dep])
   test('test_runtime_dump', test_runtime_dump, suite : 'unit')
+
+  test_flash_db = executable('test_flash_db',
+    ['test_flash_db.c', '../src/flash_db.c'],
+    include_directories : test_inc,
+    dependencies : [cmocka_dep])
+  test('test_flash_db', test_flash_db, suite : 'unit')
+
+  test_flash_dump = executable('test_flash_dump',
+    ['test_flash_dump.c', '../src/flash_dump.c',
+     '../src/runtime_dump.c', '../src/soc_db.c', '../src/flash_db.c'],
+    include_directories : test_inc,
+    dependencies : [cmocka_dep])
+  test('test_flash_dump', test_flash_dump, suite : 'unit')
 endif
 
 python3 = find_program('python3', required : false)

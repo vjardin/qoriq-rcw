@@ -99,6 +99,24 @@ If the `qoriq-rcw-data` package is not installed, pass the matching
 sudo qoriq-rcw --dump --rcwi ./lx2160a.rcwi -o /tmp/live.rcw
 ```
 
+Recover the RCW and the PBI commands directly from the boot flash
+(unlike `--dump`, which only sees the post-execution RCW state because
+PBI commands run once at boot and aren't preserved). The boot device
+is auto-detected from `PORSR1.RCW_SRC` and a `/proc/mtd` partition
+name scan:
+
+```bash
+sudo qoriq-rcw --dump-flash -o /tmp/flash.rcw
+```
+
+Read both bootrom slots (primary at offset 0/0x1000, fallback at
++8 MiB) - useful for verifying A/B image consistency:
+
+```bash
+sudo qoriq-rcw --dump-flash --slot all -o /tmp/dump.rcw
+# produces /tmp/dump.primary.rcw and /tmp/dump.fallback.rcw
+```
+
 See `qoriq-rcw(1)` for the full reference.
 
 ## License

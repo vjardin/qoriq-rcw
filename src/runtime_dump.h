@@ -53,6 +53,13 @@ typedef struct {
 int runtime_read_rcw(const soc_info_t *soc, const char *mem_path, uint8_t rcw_out[RCW_DUMP_BYTES], uint32_t *svr_out, char *err, size_t errlen);
 
 /*
+ * Read PORSR1 (DCFG offset 0x0) - captures the CFG_RCW_SRC pin straps
+ * sampled at PORESET. Used by --dump-flash to learn which boot medium
+ * the bootrom loaded the RCW from.
+ */
+int runtime_read_porsr1(const soc_info_t *soc, const char *mem_path, uint32_t *porsr1_out, char *err, size_t errlen);
+
+/*
  * Run the sanity-check battery. Always populates `log` with one entry
  * per check; never returns an error. Caller decides what to do with
  * `log->any_failed`.

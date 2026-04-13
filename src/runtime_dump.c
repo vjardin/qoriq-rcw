@@ -101,6 +101,47 @@ runtime_read_rcw(const soc_info_t *soc, const char *mem_path, uint8_t rcw_out[RC
   return 0;
 }
 
+int
+runtime_read_porsr1(const soc_info_t *soc, const char *mem_path,
+                    uint32_t *porsr1_out, char *err, size_t errlen) {
+  if (!soc || !mem_path || !porsr1_out) {
+    snprintf(err, errlen, "internal: NULL argument");
+    return -EINVAL;
+  }
+
+  int fd = open(mem_path, O_RDONLY | O_SYNC);
+  if (fd < 0) {
+    snprintf(err, errlen, "open(%s): %s", mem_path, strerror(errno));
+    return -errno;
+  }
+
+  long page = sysconf(_SC_PAGESIZE);
+  if (page <= 0) page = 4096;
+
+  off_t map_off = (off_t)soc->dcfg_base;
+  struct stat st;
+  if (fstat(fd, &st) == 0 && S_ISREG(st.st_mode))
+    map_off = 0;
+
+  void *m = mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, fd, map_off);
+  if (m == MAP_FAILED) {
+    int saved = errno;
+    close(fd);
+    snprintf(err, errlen, "mmap(%s @ 0x%llx): %s", mem_path,
+             (unsigned long long)soc->dcfg_base, strerror(saved));
+    return -saved;
+  }
+
+  /* PORSR1 is at DCFG offset 0x0 (LX2160ARM:38241). */
+  const volatile uint32_t *p = (const volatile uint32_t *)m;
+  *porsr1_out = *p;
+
+  munmap(m, (size_t)page);
+  close(fd);
+  err[0] = '\0';
+  return 0;
+}
+
 void
 runtime_sanity_run(const soc_info_t *soc, const char *dt_detail, uint32_t svr, const uint8_t rcw[RCW_DUMP_BYTES], sanity_log_t *log) {
   memset(log, 0, sizeof(*log));
