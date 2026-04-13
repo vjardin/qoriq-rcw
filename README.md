@@ -79,6 +79,26 @@ Decompile a binary back to source:
 qoriq-rcw -r -i rcw.bin --rcwi lx2160a.rcwi -o rcw_decoded.rcw
 ```
 
+Capture the live RCW from a running QorIQ/Layerscape board (auto-detects
+SoC from `/proc/device-tree/compatible`, falls back to an SVR probe).
+Requires root for `/dev/mem`:
+
+```bash
+sudo qoriq-rcw --dump -o /tmp/live.rcw
+```
+
+The output starts with a C-comment header listing the detected SoC, the
+DCFG base address used, and the result of every sanity check (SVR
+match, non-zero/non-stuck-high RCW, endianness, ...). PBI commands are
+not recoverable in this mode - only the 1024-bit RCW register state.
+
+If the `qoriq-rcw-data` package is not installed, pass the matching
+`.rcwi` explicitly:
+
+```bash
+sudo qoriq-rcw --dump --rcwi ./lx2160a.rcwi -o /tmp/live.rcw
+```
+
 See `qoriq-rcw(1)` for the full reference.
 
 ## License

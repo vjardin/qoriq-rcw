@@ -21,6 +21,9 @@ qoriq-rcw - compile and decompile QorIQ Reset Configuration Word files
 **qoriq-rcw** **-r** **-i** *binary* **-o** *source* **\-\-rcwi** *rcwi*
 [**-I** *path*]...
 
+**qoriq-rcw** **\-\-dump** **-o** *source* [**\-\-rcwi** *rcwi*]
+[**\-\-mem** *path*] [**\-\-force**]
+
 # DESCRIPTION
 
 **qoriq-rcw** compiles RCW source files into PBL/RCW binary images for NXP
@@ -73,6 +76,27 @@ commands, and a CRC or Stop terminator.
 **-w**
 :   Enable warning messages. When set, duplicate bitfield assignments produce a
     warning on standard error.
+
+**\-\-dump**
+:   Read the live 128-byte RCW snapshot from the running SoC's RCWSR
+    registers via */dev/mem* and emit a *.rcw* source file. Detects the SoC
+    from */proc/device-tree/compatible* (or, as a fallback, by reading the
+    SVR register at the well-known DCFG offset). The output begins with a
+    C-comment block listing the detected SoC, the DCFG base address used,
+    and the result of every sanity check. Requires root (for */dev/mem*).
+    Mutually exclusive with **-r** and **-i**. PBI commands are not
+    recoverable in this mode - only the 1024-bit RCW register state.
+
+**\-\-mem** *path*
+:   Override */dev/mem* with an alternate path. Intended for testing
+    against a fixture file containing a snapshot of the DCFG page (RCWSR1
+    at offset 0x100, SVR at offset 0xA4, the rest unused).
+
+**\-\-force**
+:   With **\-\-dump**, emit the source file even if one or more sanity
+    checks failed (e.g. */dev/mem* returned all-zero, or the SVR didn't
+    match the detected SoC). The failures are still recorded in the
+    output's header comment block.
 
 **-h**, **\-\-help**
 :   Display usage information and exit.
@@ -183,6 +207,29 @@ Decompile a binary back to source:
 
 ```
 $ qoriq-rcw -r -i rcw.bin --rcwi ls1088rdb.rcwi -o rcw_decoded.rcw
+```
+
+Capture the live RCW from a running QorIQ board (auto-detects SoC):
+
+```
+# qoriq-rcw --dump -o /tmp/live.rcw
+# head -20 /tmp/live.rcw
+/*
+ * Reset Configuration Word - runtime dump
+ *
+ * SoC family    : NXP Layerscape LX2160A
+ * SoC compatible: fsl,lx2160a
+ * SVR           : 0x87360120 (expected 0x87360000 mask 0xffff0000)
+ * DCFG base     : 0x01e00000
+ * ...
+ */
+```
+
+If the canonical *.rcwi* files are not installed (no
+*/usr/share/qoriq-rcw/* directory), pass **\-\-rcwi** explicitly:
+
+```
+# qoriq-rcw --dump --rcwi ./lx2160a.rcwi -o /tmp/live.rcw
 ```
 
 A source file embedding a u-boot image:

@@ -9,6 +9,7 @@ Build-Depends:
  pkg-config,
  libqoriq-rcw-dev,
  libmcpp-dev,
+ libcmocka-dev,
  pandoc
 Standards-Version: 4.6.2
 Homepage: https://github.com/vjardin/qoriq-rcw
@@ -17,8 +18,29 @@ Rules-Requires-Root: no
 Package: qoriq-rcw
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
+Recommends: qoriq-rcw-data
 Description: QorIQ Reset Configuration Word compiler (CLI)
  qoriq-rcw compiles RCW source files into PBL/RCW binary images for
  NXP QorIQ and Layerscape SoCs that use PBI format 2 (LS1028, LS1088,
  LS2088, LX2160 families) and decompiles binary images back to RCW
  source text. It is built on top of libqoriq-rcw.
+ .
+ The CLI also supports a --dump mode that reads the live RCW snapshot
+ from /dev/mem on a running QorIQ/Layerscape board, runs sanity
+ checks, and emits a recompilable .rcw file. Install qoriq-rcw-data
+ to use --dump (and decompiled output) without --rcwi/-I flags.
+
+Package: qoriq-rcw-data
+Architecture: all
+Multi-Arch: foreign
+Depends: ${misc:Depends}
+Description: QorIQ Reset Configuration Word compiler (data files)
+ Canonical .rcwi bitfield definitions for the four pbiformat=2 SoC
+ families (LS1028A, LS1088A, LS2088A, LX2160A - the latter shared
+ with LX2120A and LX2080A). Vendored from the upstream
+ nxp-qoriq/rcw repository under their original 3-clause BSD licence.
+ .
+ Installed to /usr/share/qoriq-rcw/. With this package present,
+ qoriq-rcw --dump auto-resolves the right .rcwi for the detected
+ SoC, and decompiled output recompiles via #include <foo.rcwi>
+ without needing -I.

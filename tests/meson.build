@@ -1,3 +1,21 @@
+cmocka_dep = dependency('cmocka', required : false)
+
+if cmocka_dep.found()
+  test_inc = include_directories('../src')
+
+  test_soc_db = executable('test_soc_db',
+    ['test_soc_db.c', '../src/soc_db.c'],
+    include_directories : test_inc,
+    dependencies : [cmocka_dep])
+  test('test_soc_db', test_soc_db, suite : 'unit')
+
+  test_runtime_dump = executable('test_runtime_dump',
+    ['test_runtime_dump.c', '../src/runtime_dump.c', '../src/soc_db.c'],
+    include_directories : test_inc,
+    dependencies : [cmocka_dep])
+  test('test_runtime_dump', test_runtime_dump, suite : 'unit')
+endif
+
 python3 = find_program('python3', required : false)
 
 if python3.found()

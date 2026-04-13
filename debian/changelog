@@ -1,3 +1,14 @@
+qoriq-rcw (0.2.0-1) unstable; urgency=medium
+
+  * Add --dump mode: read the live RCW snapshot from /dev/mem on a
+    running QorIQ/Layerscape board and emit a recompilable .rcw file
+    with a header documenting the detected SoC, addresses, and the
+    sanity checks performed.
+  * New qoriq-rcw-data binary package shipping the canonical .rcwi
+    files vendored from nxp-qoriq/rcw.
+
+ -- Vincent Jardin <vjardin@free.fr>  Mon, 13 Apr 2026 14:00:00 +0000
+
 qoriq-rcw (0.1.0-1) unstable; urgency=medium
 
   * Initial Debian/Ubuntu packaging.

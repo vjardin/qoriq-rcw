@@ -268,7 +268,9 @@ jobs:
         run: |
           mkdir -p artifacts
           mv libqoriq-rcw*_*.deb artifacts/ 2>/dev/null || true
-          mv qoriq-rcw_*.deb artifacts/
+          # Match both qoriq-rcw_*.deb (CLI, per-arch) and
+          # qoriq-rcw-data_*_all.deb (data, Architecture: all).
+          mv qoriq-rcw*_*.deb artifacts/
           ls -la artifacts/
 
       - name: Upload .deb packages

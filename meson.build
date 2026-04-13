@@ -1,5 +1,5 @@
 project('qoriq-rcw', 'c',
-  version : '0.1.0',
+  version : '0.2.0',
   license : 'BSD-3-Clause',
   default_options : [
     'c_std=c17',
@@ -38,10 +38,35 @@ else
   libqoriq_rcw_dep = dependency('libqoriq-rcw', required : true)
 endif
 
-executable('qoriq-rcw',
+datadir = get_option('prefix') / get_option('datadir') / 'qoriq-rcw'
+
+cli_sources = files(
   'src/main.c',
+  'src/runtime_dump.c',
+  'src/soc_db.c',
+)
+
+cli_args = [
+  '-DQORIQ_RCW_DATADIR="' + datadir + '"',
+  '-DQORIQ_RCW_VERSION="' + meson.project_version() + '"',
+]
+
+executable('qoriq-rcw',
+  cli_sources,
+  c_args : cli_args,
   dependencies : libqoriq_rcw_dep,
   install : true)
+
+# Optional companion data - install canonical .rcwi files into
+# $datadir/qoriq-rcw so `--dump` works without `--rcwi` and decompiled
+# output recompiles via `#include <foo.rcwi>` without `-I`.
+rcwi_files = files(
+  'data/ls1028a.rcwi',
+  'data/ls1088a.rcwi',
+  'data/ls2088a.rcwi',
+  'data/lx2160a.rcwi',
+)
+install_data(rcwi_files, install_dir : get_option('datadir') / 'qoriq-rcw')
 
 pandoc = find_program('pandoc', required : true)
 
