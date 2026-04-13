@@ -7,7 +7,7 @@ Build-Depends:
  meson,
  ninja-build,
  pkg-config,
- libqoriq-rcw-dev,
+ libqoriq-rcw-dev (>= 0.2.0),
  libmcpp-dev,
  libcmocka-dev,
  pandoc

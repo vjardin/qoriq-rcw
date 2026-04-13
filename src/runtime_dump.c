@@ -145,7 +145,7 @@ runtime_sanity_run(const soc_info_t *soc, const char *dt_detail, uint32_t svr, c
     log_add(log, SANITY_PASS, "endianness", "SVR readback is little-endian (matches %s)", soc->compat);
   } else {
     uint32_t swapped =
-        | ((svr & 0xFF000000u) >> 24)
+          ((svr & 0xFF000000u) >> 24)
         | ((svr & 0x00FF0000u) >>  8)
         | ((svr & 0x0000FF00u) <<  8)
         | ((svr & 0x000000FFu) << 24)

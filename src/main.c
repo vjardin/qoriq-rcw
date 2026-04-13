@@ -154,47 +154,31 @@ static int cmd_dump(rcw_ctx_t *ctx, const char *output_path, const char *user_rc
   if (!rcwi_path)
     errx(EXIT_FAILURE, "%s", rerr2);
 
-  /* Read the .rcwi (the library will preprocess it). For the
-   * decompile_buffer API we need the preprocessed text - but for a
-   * file-on-disk we can take the simpler path through
-   * rcw_decompile_file()... except it prepends its own
-   * "#include <basename>\n\n" which we want to control.
-   *
-   * Use rcw_decompile_buffer with rcwi_name=basename(rcwi_path) so the
-   * include is emitted, and we pre-pend our own header before writing
-   * to disk.
-   *
-   * To get the preprocessed .rcwi text, the easiest is to re-use
-   * rcw_decompile_file but redirect to a temp file, then read it back
-   * and prepend. That's wasteful - instead, just call
-   * rcw_decompile_file() (which already writes the include line) and
-   * then prepend our header via fopen + rewrite.
-   *
-   * The simplest robust path: write a temp .bin, run
-   * rcw_decompile_file() to produce a "raw" decompiled string with
-   * the library's own #include <...> line, then prepend our header to
-   * that string and write it out.
+  /*
+   * In-memory decompile path: preprocess the .rcwi via mcpp (so
+   * macros / #include in the .rcwi expand), then feed the resulting
+   * text together with the live 128-byte RCW buffer to
+   * rcw_decompile_buffer(). No tempfile, no double I/O. The library
+   * accepts a bare 128-byte buffer with no PBL preamble (see
+   * rcw_decompile.c - len == 128 skips the preamble check).
    */
-
-  /* Write the 128-byte RCW to a tempfile so we can use the file API. */
-  char tmpl[] = "/tmp/qoriq-rcw-dumpXXXXXX";
-  int tfd = mkstemp(tmpl);
-  if (tfd < 0)
-    err(EXIT_FAILURE, "mkstemp");
-  if (write(tfd, rcw, sizeof(rcw)) != (ssize_t)sizeof(rcw)) {
-    int saved = errno;
-    close(tfd);
-    unlink(tmpl);
+  char *rcwi_pp = NULL;
+  size_t rcwi_pp_len = 0;
+  rcw_error_t rcw_err = rcw_preprocess_file(ctx, rcwi_path, &rcwi_pp, &rcwi_pp_len);
+  if (rcw_err != RCW_OK) {
+    char *path_copy = strdup(rcwi_path);
     free(rcwi_path);
-    errno = saved;
-    err(EXIT_FAILURE, "write tempfile");
+    errx(EXIT_FAILURE, "preprocess %s: %s", path_copy ? path_copy : "(?)", rcw_strerror(rcw_err));
   }
-  close(tfd);
+
+  /* basename for the #include line in the output. */
+  const char *base = strrchr(rcwi_path, '/');
+  base = base ? base + 1 : rcwi_path;
 
   char *source = NULL;
   size_t source_len = 0;
-  rcw_error_t rcw_err = rcw_decompile_file(ctx, tmpl, rcwi_path, &source, &source_len);
-  unlink(tmpl);
+  rcw_err = rcw_decompile_buffer(ctx, rcwi_pp, rcwi_pp_len, rcw, sizeof(rcw), base, &source, &source_len);
+  rcw_free(rcwi_pp);
   free(rcwi_path);
   if (rcw_err != RCW_OK)
     errx(EXIT_FAILURE, "decompile: %s: %s", rcw_strerror(rcw_err), rcw_ctx_last_error_detail(ctx));
