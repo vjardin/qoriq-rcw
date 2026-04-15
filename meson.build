@@ -67,6 +67,7 @@ rcwi_files = files(
   'data/ls1088a.rcwi',
   'data/ls2088a.rcwi',
   'data/lx2160a.rcwi',
+  'data/lx2160a_regs.rcw',
 )
 install_data(rcwi_files, install_dir : get_option('datadir') / 'qoriq-rcw')
 

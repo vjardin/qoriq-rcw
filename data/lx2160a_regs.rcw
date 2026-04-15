@@ -1,0 +1,113 @@
+/*
+ * SPDX-License-Identifier: BSD-3-Clause
+ * Copyright 2026 Free Mobile - Vincent Jardin
+ *
+ * Symbolic addresses for DCFG and Reset block registers used in PBI
+ * commands. Include this from .rcw files to replace magic hex values
+ * with readable names.
+ *
+ * Source: LX2160A Reference Manual Rev. 1, 10/2021
+ *   Chapter 4  : Reset, Clocking, and Initialization
+ *   Section 4.3: Reset register descriptions (RST_CCSR at 0x01E60000)
+ *   Section 4.9: Power-on reset configuration (DCFG at 0x01E00000)
+ */
+
+/*
+ * DCFG block (0x01E00000 + offset)
+ *   Full map: RM Section 2.3 "CCSR Address Map" and
+ *             RM Section 4.9.8 register descriptions
+ */
+#define DCFG_BASE            0x01E00000
+
+#define DCFG_PORSR1          (DCFG_BASE + 0x000) /* POR Status 1 (RO)              */
+#define DCFG_GPPORCR1        (DCFG_BASE + 0x020) /* General-Purpose POR Cfg (RO)   */
+#define DCFG_SVR             (DCFG_BASE + 0x0A4) /* System Version (RO)            */
+#define DCFG_RCWSR1          (DCFG_BASE + 0x100) /* RCW Status Register 1 (RO)     */
+
+/* Scratch registers: SCRATCHRW1..11 at +0x200..+0x228 (step 4)
+ *                    SCRATCHRW12    at +0x22C    (core warm reset)
+ *                    SCRATCHRW13..16 at +0x230..+0x23C */
+#define DCFG_SCRATCHRW(n)    (DCFG_BASE + 0x200 + (((n) - 1) * 4))
+
+/* Boot Location Pointer. Written by PBI to tell the A72 cores where the
+ * bootloader lives. If both are 0, cores fall back to RCW[BOOT_LOC]. */
+#define DCFG_BOOTLOCPTRL     (DCFG_BASE + 0x400)  /* low  32 bits */
+#define DCFG_BOOTLOCPTRH     (DCFG_BASE + 0x404)  /* high 32 bits */
+
+/* General Control Register 1. Sampled by A72 cores on their reset
+ * de-assertion, so it MUST be written during PBI.
+ *   Bit 31 = SYSBARDISABLE
+ *   Bit 29 = BROADCASTCACHEMAINT */
+#define DCFG_GENCR1          (DCFG_BASE + 0x620)
+#define   GENCR1_SYSBARDISABLE           0x80000000
+#define   GENCR1_BROADCASTCACHEMAINT     0x20000000
+
+/*
+ * Reset block (RST_CCSR) at 0x01E60000 + offset
+ *   See RM Section 4.3.1 "RST_CCSR memory map"
+ */
+#define RST_BASE             0x01E60000
+
+/* Boot Release Register (low). BRRL[15:0] = one bit per core (0..15).
+ * A bit set to 1 holds the corresponding core in boot holdoff; clear
+ * to release it and let it enter WFE (recommended for power savings). */
+#define RST_BRRL             (RST_BASE + 0x060)
+
+/*
+ * PBI helper macros for common sequences
+ */
+
+/* 16-core "release all" value (LX2160A has 16 A72 cores). */
+#define BRRL_RELEASE_ALL_16 0x0000FFFF
+
+/*
+ * FlexSPI0 (XSPI1) AHB-mapped flash window
+ *   RM Section 2.2 "System Memory Map" - FlexSPI0 AHB region.
+ *
+ * When booting from FlexSPI NOR, the SoC memory-maps the flash contents
+ * read-only at FLEXSPI0_AHB_BASE so the A72 cores can execute code in
+ * place, without first copying to RAM.
+ */
+#define FLEXSPI0_AHB_BASE       0x20000000
+
+/*
+ * Standard NXP Layerscape flash layout for FlexSPI NOR boot.
+ *
+ * These offsets match the default NXP TF-A (ATF) platform for LX2160A
+ * boards (lx2160ardb, lx2160aqds). When customizing, keep your TF-A
+ * build variables aligned with the offsets below, otherwise the A72
+ * will jump to blank flash and hang.
+ *
+ *   In plat/nxp/soc-lx2160a/<board>/platform.mk (or platform_def.h):
+ *     BL2_BASE                = NXP_NOR_BL2_BASE     (0x20100000)
+ *     BL2_TEXT_START          = NXP_NOR_BL2_BASE
+ *     FUSE_PROG_IMAGE_OFFSET  = NXP_NOR_BL2_OFFSET   (0x00100000)
+ *     NXP_ROM_RSVD            >= 0x100000            (1 MB reserved)
+ *     FIP_BASE                = NXP_NOR_FIP_BASE     (0x20300000)
+ *
+ * Flash offset 0x000000 - 0x001000 : RCW + PBI (Service Processor loads)
+ * Flash offset 0x001000 - 0x100000 : reserved (DDR training data, fuses)
+ * Flash offset 0x100000 - 0x200000 : BL2 (TF-A first stage or U-Boot SPL)
+ * Flash offset 0x200000 - 0x300000 : BL31 (TF-A runtime)
+ * Flash offset 0x300000 - 0x800000 : FIP / BL33 (U-Boot or full payload)
+ * Flash offset 0x800000 - ...      : fallback RCW+PBI (SP retries here
+ *                                    if primary RCW load from 0x0 fails)
+ */
+#define NXP_NOR_RCW_OFFSET      0x00000000  /* primary slot for SP   */
+#define NXP_NOR_BL2_OFFSET      0x00100000  /* 1 MB into flash       */
+#define NXP_NOR_BL31_OFFSET     0x00200000  /* 2 MB into flash       */
+#define NXP_NOR_FIP_OFFSET      0x00300000  /* 3 MB into flash       */
+#define NXP_NOR_FALLBACK_OFFSET 0x00800000  /* 8 MB, fallback slot   */
+
+/* Physical addresses in the SoC memory map when the CPU fetches
+ * directly from NOR via the FlexSPI0 AHB window (execute-in-place). */
+#define NXP_NOR_RCW_BASE        (FLEXSPI0_AHB_BASE + NXP_NOR_RCW_OFFSET)
+#define NXP_NOR_BL2_BASE        (FLEXSPI0_AHB_BASE + NXP_NOR_BL2_OFFSET)
+#define NXP_NOR_BL31_BASE       (FLEXSPI0_AHB_BASE + NXP_NOR_BL31_OFFSET)
+#define NXP_NOR_FIP_BASE        (FLEXSPI0_AHB_BASE + NXP_NOR_FIP_OFFSET)
+
+/* Value written to DCFG_BOOTLOCPTRL for a standard FlexSPI NOR boot.
+ * This is where the A72 cores begin executing BL2 after the Service
+ * Processor finishes PBI. It MUST equal TF-A's BL2_BASE in the board
+ * platform.mk. Default: 0x20100000. */
+#define NXP_NOR_BOOT_ENTRY      NXP_NOR_BL2_BASE
