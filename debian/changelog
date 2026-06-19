@@ -1,3 +1,9 @@
+qoriq-rcw (1.0.0-1) unstable; urgency=medium
+
+  * Release 1.0.0.
+
+ -- Vincent Jardin <vjardin@free.fr>  Fri, 19 Jun 2026 00:00:00 +0000
+
 qoriq-rcw (0.2.0-1) unstable; urgency=medium
 
   * Add --dump mode: read the live RCW snapshot from /dev/mem on a
