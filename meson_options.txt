@@ -7,3 +7,6 @@ option('rcw-ref-dir',
   type : 'string',
   value : '',
   description : 'Path to the upstream NXP rcw repository (clone of git@github.com:nxp-qoriq/rcw.git). Used by the cross-validate test. Default: ../../rcw relative to qoriq-rcw/. Can also be overridden at test time via the RCW_REF_DIR environment variable.')
+
+option('man', type : 'feature', value : 'auto',
+  description : 'Build man pages (requires pandoc). auto = build if pandoc available.')

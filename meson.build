@@ -71,13 +71,14 @@ rcwi_files = files(
 )
 install_data(rcwi_files, install_dir : get_option('datadir') / 'qoriq-rcw')
 
-pandoc = find_program('pandoc', required : true)
-
-man1 = custom_target('qoriq-rcw.1',
-  input : 'man/qoriq-rcw.1.md',
-  output : 'qoriq-rcw.1',
-  command : [pandoc, '-s', '-t', 'man', '@INPUT@', '-o', '@OUTPUT@'],
-  install : true,
-  install_dir : get_option('mandir') / 'man1')
+pandoc = find_program('pandoc', required : get_option('man'))
+if pandoc.found()
+  man1 = custom_target('qoriq-rcw.1',
+    input : 'man/qoriq-rcw.1.md',
+    output : 'qoriq-rcw.1',
+    command : [pandoc, '-s', '-t', 'man', '@INPUT@', '-o', '@OUTPUT@'],
+    install : true,
+    install_dir : get_option('mandir') / 'man1')
+endif
 
 subdir('tests')
