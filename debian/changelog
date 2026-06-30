@@ -1,3 +1,11 @@
+qoriq-rcw (1.0.1-1) unstable; urgency=medium
+
+  * meson: make pandoc man-page generation optional, controlled by the
+    new `man` option, so the tool builds where pandoc is unavailable.
+  * README: document the release process.
+
+ -- Vincent Jardin <vjardin@free.fr>  Tue, 30 Jun 2026 16:56:40 +0200
+
 qoriq-rcw (1.0.0-1) unstable; urgency=medium
 
   * Release 1.0.0.
