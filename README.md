@@ -46,6 +46,53 @@ The test suite includes a cross-validation script that compiles every `.rcw` con
 meson install -C build
 ```
 
+## Releasing
+
+The version number shall be bumped for every release:
+
+| File               | What to change                                |
+|--------------------|-----------------------------------------------|
+| `meson.build`      | the `version :` field of the `project()` call |
+| `debian/changelog` | a new top entry `qoriq-rcw (X.Y.Z-1) ...`     |
+
+The `QORIQ_RCW_VERSION` macro used by the CLI is derived from the
+`meson.build` `version :` field at build time, so there is no separate
+header to edit.
+
+Add the changelog entry with the text timestamp:
+
+```bash
+date -R # e.g. Tue, 30 Jun 2026 16:56:40 +0200
+```
+
+Commit the two files, create an annotated tag, and push both:
+
+```bash
+git add meson.build debian/changelog
+git commit -m "Release X.Y.Z"
+git tag -a vX.Y.Z -m "qoriq-rcw X.Y.Z"
+git push origin main
+git push origin vX.Y.Z
+```
+
+Then, GitHub shall auto-generate the source archives
+(`.tar.gz` / `.zip`) for the tag; if needed use `gh release create`:
+
+```bash
+gh release create vX.Y.Z --title "vX.Y.Z" --notes "..."
+```
+
+The tarball is then available at:
+
+```
+https://github.com/vjardin/qoriq-rcw/archive/refs/tags/vX.Y.Z.tar.gz
+```
+
+For example: the 1.0.0 release was commit
+[`57344b8`](https://github.com/vjardin/qoriq-rcw/commit/57344b80d73aba6b27e07f3510e8a397a714b5ea)
+("Release 1.0.0"), tagged `v1.0.0`
+([release page](https://github.com/vjardin/qoriq-rcw/releases/tag/v1.0.0)).
+
 ## Usage
 
 Compile an RCW source file to a binary:
