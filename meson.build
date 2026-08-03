@@ -30,9 +30,11 @@ if libqoriq_rcw_path != ''
     dirs : [lib_build],
     required : true)
 
+  mcpp_dep = cc.find_library('mcpp', required : true)
+
   # Use -I flag directly since meson rejects absolute include_directories()
   libqoriq_rcw_dep = declare_dependency(
-    dependencies : libqoriq_rcw_lib,
+    dependencies : [libqoriq_rcw_lib, mcpp_dep],
     compile_args : ['-I' + lib_src / 'include'])
 else
   libqoriq_rcw_dep = dependency('libqoriq-rcw', required : true)
