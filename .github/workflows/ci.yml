@@ -74,7 +74,7 @@ jobs:
 
       - name: Upload meson logs on failure
         if: failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: meson-logs-build-${{ matrix.os }}-${{ matrix.cc }}
           path: |
@@ -139,7 +139,7 @@ jobs:
 
       - name: Upload meson logs on failure
         if: failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: meson-logs-cross-${{ matrix.os }}-${{ matrix.cc }}
           path: qoriq-rcw/build/meson-logs/
@@ -202,7 +202,7 @@ jobs:
         run: meson dist -C build --no-tests
 
       - name: Upload dist tarball
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: dist-tarball
           path: qoriq-rcw/build/meson-dist/*.tar.xz
@@ -274,7 +274,7 @@ jobs:
           ls -la artifacts/
 
       - name: Upload .deb packages
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: debs-${{ matrix.distro.slug }}-${{ matrix.arch.name }}
           path: artifacts/*.deb
