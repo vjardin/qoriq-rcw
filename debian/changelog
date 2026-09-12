@@ -1,3 +1,12 @@
+qoriq-rcw (1.0.2-1) unstable; urgency=medium
+
+  * build: link libmcpp explicitly when building against a sibling
+    libqoriq-rcw source tree.
+  * ci: update GitHub Actions versions to fix workflow warnings.
+  * flash_db: clean up boot-source table comments.
+
+ -- Vincent Jardin <vjardin@free.fr>  Sat, 12 Sep 2026 19:50:28 +0200
+
 qoriq-rcw (1.0.1-1) unstable; urgency=medium
 
   * meson: make pandoc man-page generation optional, controlled by the
