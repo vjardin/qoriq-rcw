@@ -14,7 +14,7 @@
 #include "flash_db.h"
 
 /*
- * Boot source table - values from CLAUDE.md's CFG_RCW_SRC encoding.
+ * Boot source table
  *
  * Slot offsets per LX2160ARM:17688-9: primary at 0 (0x1000 on SD), fallback
  * at 0x800000 (0x801000 on SD). eMMC follows the same convention as SD; the
@@ -58,8 +58,7 @@ flash_db_find_by_rcw_src(uint32_t rcw_src) {
  * low 4 bits - that is what matches the table values.
  *
  * Some tools encode RCW_SRC differently per SoC (LS1028 etc.); for
- * pbiformat=2 the mapping is consistent across the four supported
- * families (CLAUDE.md table).
+ * pbiformat=2
  */
 uint32_t
 flash_db_porsr1_to_rcw_src(uint32_t porsr1) {
