@@ -1,5 +1,5 @@
 project('qoriq-rcw', 'c',
-  version : '1.0.2',
+  version : '1.0.3',
   license : 'BSD-3-Clause',
   default_options : [
     'c_std=c17',

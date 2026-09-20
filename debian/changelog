@@ -1,3 +1,12 @@
+qoriq-rcw (1.0.3-1) unstable; urgency=medium
+
+  * tests: check the write() result in the soc_db fixture, fixing a
+    -Wunused-result warning in _FORTIFY_SOURCE builds.
+  * meson: add a 'tests' feature option so packaging builds can skip
+    the test suite with -Dtests=disabled.
+
+ -- Vincent Jardin <vjardin@free.fr>  Sun, 20 Sep 2026 14:37:14 +0200
+
 qoriq-rcw (1.0.2-1) unstable; urgency=medium
 
   * build: link libmcpp explicitly when building against a sibling
