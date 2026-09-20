@@ -1,4 +1,6 @@
-cmocka_dep = dependency('cmocka', required : false)
+tests_opt = get_option('tests')
+
+cmocka_dep = dependency('cmocka', required : tests_opt)
 
 if cmocka_dep.found()
   test_inc = include_directories('../src')
@@ -31,7 +33,7 @@ endif
 
 python3 = find_program('python3', required : false)
 
-if python3.found()
+if not tests_opt.disabled() and python3.found()
   test_env = environment()
   rcw_ref_dir = get_option('rcw-ref-dir')
   if rcw_ref_dir != ''

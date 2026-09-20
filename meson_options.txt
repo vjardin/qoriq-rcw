@@ -10,3 +10,6 @@ option('rcw-ref-dir',
 
 option('man', type : 'feature', value : 'auto',
   description : 'Build man pages (requires pandoc). auto = build if pandoc available.')
+
+option('tests', type : 'feature', value : 'auto',
+  description : 'Build the test suite. auto = unit tests if cmocka is available.')
