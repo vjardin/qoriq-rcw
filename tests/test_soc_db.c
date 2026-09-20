@@ -96,7 +96,9 @@ make_dt_fixture(const char *const *entries, size_t n) {
   int fd = mkstemp(tmpl);
   assert_true(fd >= 0);
   for (size_t i = 0; i < n; i++) {
-    write(fd, entries[i], strlen(entries[i]) + 1);
+    size_t len = strlen(entries[i]) + 1;
+    ssize_t w = write(fd, entries[i], len);
+    assert_int_equal(w, (ssize_t)len);
   }
   close(fd);
   return strdup(tmpl);
