@@ -2,7 +2,7 @@
 title: QORIQ-RCW
 section: 1
 header: User Commands
-footer: qoriq-rcw 1.1.0
+footer: qoriq-rcw 1.2.0
 date: 2026-10-25
 ---
 
