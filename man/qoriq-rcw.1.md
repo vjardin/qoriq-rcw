@@ -2,8 +2,8 @@
 title: QORIQ-RCW
 section: 1
 header: User Commands
-footer: qoriq-rcw 0.1.0
-date: 2026-04-12
+footer: qoriq-rcw 1.1.0
+date: 2026-10-25
 ---
 
 <!-- SPDX-License-Identifier: BSD-3-Clause -->
@@ -11,15 +11,18 @@ date: 2026-04-12
 
 # NAME
 
-qoriq-rcw - compile and decompile QorIQ Reset Configuration Word files
+qoriq-rcw - compile, decompile and check QorIQ Reset Configuration Word files
 
 # SYNOPSIS
 
 **qoriq-rcw** **-i** *input* **-o** *output* [**-I** *path*]...
-[**-D** *field=value*]... [**\-\-no-pbl**] [**-w**]
+[**-D** *field=value*]... [**\-\-define** *name*[=*value*]]...
+[**\-\-no-pbl**] [**-w**]
 
 **qoriq-rcw** **-r** **-i** *binary* **-o** *source* **\-\-rcwi** *rcwi*
-[**-I** *path*]...
+[**-I** *path*]... [**\-\-define** *name*[=*value*]]...
+
+**qoriq-rcw** **\-\-check** **-i** *image* [**-v**]
 
 **qoriq-rcw** **\-\-dump** **-o** *source* [**\-\-rcwi** *rcwi*]
 [**\-\-mem** *path*] [**\-\-force**]
@@ -33,7 +36,9 @@ qoriq-rcw - compile and decompile QorIQ Reset Configuration Word files
 **qoriq-rcw** compiles RCW source files into PBL/RCW binary images for NXP
 QorIQ and Layerscape SoCs that use PBI format 2 (LS1028, LS1088, LS2088,
 LX2160 families). In reverse mode, it decompiles a binary image back to RCW
-source text.
+source text. With **\-\-check**, it verifies an image the way the Service
+Processor's BootROM should do before running it, so that a bad image is caught before it
+is flashed.
 
 The input *.rcw* file is first run through the embedded C preprocessor
 (mcpp, invoked in-process - no external toolchain required),
@@ -46,11 +51,12 @@ commands, and a CRC or Stop terminator.
 
 **-i** *file*
 :   Input filename. In forward mode, this is an *.rcw* source file. In reverse
-    mode (**-r**), this is a *.bin* binary file. Required.
+    mode (**-r**) and with **\-\-check**, this is a binary image. Required.
 
 **-o** *file*
 :   Output filename. In forward mode, a binary *.bin* file is produced. In
-    reverse mode, RCW source text is produced. Required.
+    reverse mode, RCW source text is produced. Required, except with
+    **\-\-check**.
 
 **-r**
 :   Reverse mode: decompile a binary image into RCW source text. Requires
@@ -68,9 +74,19 @@ commands, and a CRC or Stop terminator.
 **-D** *FIELD=VALUE*
 :   Override a bitfield value, equivalent to adding an assignment line in the
     source file. *FIELD* is the bitfield name (e.g. **SYS_PLL_RAT**), and
-    *VALUE* is a numeric value (decimal or **0x** hexadecimal). Overrides take
-    effect after source parsing, so they supersede values set in the *.rcw*
-    file. May be specified multiple times.
+    *VALUE* is read like Python's **int(VALUE, 0)**:
+    decimal, or **0x** hexadecimal, **0o** octal, **0b** binary; a decimal
+    with a leading zero is an error. Overrides take effect after source
+    parsing, so they supersede values set in the *.rcw* file. May be
+    specified multiple times.
+
+**\-\-define** *NAME*[=*VALUE*]
+:   Define the preprocessor macro *NAME* as *VALUE*, or as **1** without one,
+    like the **-D** option of a C compiler. The macro is seen by the *.rcw*
+    source and by the *.rcwi* file that **-r**, **\-\-dump** and
+    **\-\-dump-flash** preprocess, so that the **#ifdef** variants of the
+    sources (the LX2160A errata and SerDes protocol files, for instance) can
+    be selected from the command line. May be specified multiple times.
 
 **\-\-no-pbl**
 :   Do not generate the PBL preamble (0xAA55AA55), Load RCW command, checksum,
@@ -81,6 +97,27 @@ commands, and a CRC or Stop terminator.
 :   Enable warning messages. When set, duplicate bitfield assignments produce a
     warning on standard error.
 
+**\-\-check**
+:   Check a PBL image as the Service Processor does, and print on standard
+    output **RCW[PBI_LENGTH]** and **RCW[SB_EN]**, then the same sanity log
+    that heads a **\-\-dump-flash** output: *preamble*, *load_cmd*,
+    *checksum* (the Load RCW checksum), *terminator* (every word up to the
+    terminator must be a command, and the command **RCW[PBI_LENGTH]**
+    points at must be a Stop or a CRC and Stop, RM section 8.2.6),
+    *pbi_crc* (when the terminator is a CRC and Stop) and *pbi_commands*.
+    The verdict is **OK** when the image passes every check, and the exit
+    status follows it. Words are read little-endian, as on every PBI format
+    2 platform. An image terminated by a plain Stop has no CRC: a corrupted
+    PBI operand is then invisible to this check, as it is to the Service
+    Processor. Mutually exclusive with **-r**, **\-\-dump** and
+    **\-\-dump-flash**.
+
+**-v**, **\-\-verbose**
+:   With **\-\-check**, list every PBI command executed, terminator included,
+    as its byte offset in the image and its *.pbi* source line, in the
+    decompiler's spelling, so that the listing pastes back into a source
+    file.
+
 **\-\-dump**
 :   Read the live 128-byte RCW snapshot from the running SoC's RCWSR
     registers via */dev/mem* and emit a *.rcw* source file. Detects the SoC
@@ -89,7 +126,9 @@ commands, and a CRC or Stop terminator.
     C-comment block listing the detected SoC, the DCFG base address used,
     and the result of every sanity check. Requires root (for */dev/mem*).
     Mutually exclusive with **-r** and **-i**. PBI commands are not
-    recoverable in this mode - only the 1024-bit RCW register state.
+    recoverable in this mode - only the 1024-bit RCW register state; the
+    sanity log reports **RCW[PBI_LENGTH]**, the amount of PBI the bootrom
+    ran, which **\-\-dump-flash** recovers.
 
 **\-\-dump-flash**
 :   Read the RCW + PBI commands directly from the boot medium. Auto-
@@ -100,6 +139,10 @@ commands, and a CRC or Stop terminator.
     */proc/mtd*), SDHC1 -> */dev/mmcblk0*, SDHC2 -> */dev/mmcblk0boot0*,
     I2C EEPROM -> must pass **\-\-device**. Recovers PBI commands too,
     unlike **\-\-dump** which only sees post-execution RCW state.
+    Each slot is checked as **\-\-check** does (preamble, Load RCW
+    checksum, terminator where **RCW[PBI_LENGTH]** points, PBI CRC) and
+    compared with the live RCW; the source is decompiled from the image
+    alone, the flash padding after the terminator is left out.
     Requires root.
 
 **\-\-slot** *which*
@@ -117,13 +160,15 @@ commands, and a CRC or Stop terminator.
 **\-\-mem** *path*
 :   Override */dev/mem* with an alternate path. Intended for testing
     against a fixture file containing a snapshot of the DCFG page (RCWSR1
-    at offset 0x100, SVR at offset 0xA4, the rest unused).
+    at offset 0x100, SVR at offset 0xA4, PORSR1 at offset 0x0, the rest
+    unused).
 
 **\-\-force**
-:   With **\-\-dump**, emit the source file even if one or more sanity
-    checks failed (e.g. */dev/mem* returned all-zero, or the SVR didn't
-    match the detected SoC). The failures are still recorded in the
-    output's header comment block.
+:   With **\-\-dump** and **\-\-dump-flash**, emit the source file even if
+    one or more sanity checks failed (e.g. */dev/mem* returned all-zero,
+    the SVR didn't match the detected SoC, or the on-flash PBI CRC is
+    wrong). The failures are still recorded in the output's header comment
+    block.
 
 **-h**, **\-\-help**
 :   Display usage information and exit.
@@ -131,11 +176,12 @@ commands, and a CRC or Stop terminator.
 # EXIT STATUS
 
 **0**
-:   Success.
+:   Success. With **\-\-check**, the image passed every check.
 
 **1**
-:   An error occurred (preprocessing failure, parse error, I/O error, etc.). A
-    diagnostic message is printed to standard error.
+:   An error occurred (preprocessing failure, parse error, I/O error, etc.),
+    or the **\-\-check** verdict is FAIL. A diagnostic message is printed to
+    standard error; the **\-\-check** report goes to standard output.
 
 # BINARY FORMAT
 
@@ -153,8 +199,11 @@ var      4       Terminator command (Stop or CRC-and-Stop)
 var+4    4       Terminator value (0 or CRC-32)
 ```
 
-All 32-bit words are little-endian. The CRC-32 uses polynomial 0x04C11DB7 with
-initial value 0xFFFFFFFF.
+All 32-bit words are little-endian. **RCW[PBI_LENGTH]** counts the PBI in
+32-bit words, terminator included: the Service Processor reads that many
+words after the checksum and requires the last command among them to be
+the terminator. The CRC-32 uses polynomial 0x04C11DB7 with initial value
+0xFFFFFFFF.
 
 # RCW SOURCE SYNTAX
 
@@ -166,11 +215,16 @@ initial value 0xFFFFFFFF.
 :   Single-bit field definition at bit position *pos*.
 
 *NAME*=*value*
-:   Assign a numeric value to a previously defined bitfield.
+:   Assign a numeric value to a previously defined bitfield. Numbers read
+    like Python's **int(x, 0)**: decimal, **0x**, **0o** or **0b** prefixed,
+    underscores allowed between digits; a decimal with a leading zero is an
+    error.
 
 **%***var*=*value*
 :   Set a control variable. Recognized variables: **%size**, **%pbiformat**,
     **%classicbitnumbers**, **%littleendian**, **%nocrc**, **%loadwochecksum**.
+    **%sysaddr** belongs to the legacy PBL header and is refused with PBI
+    format 2, as **rcw.py** refuses it.
 
 **.pbi** / **.end**
 :   Delimit a Pre-Boot Initialization command block.
@@ -189,20 +243,49 @@ initial value 0xFFFFFFFF.
 The following commands are available inside **.pbi** / **.end** blocks:
 
 ```
-write addr,value
-write.b1 addr,value
-awrite addr,value
-awrite.b4 addr,v1,v2
-awrite.b5 addr,v1,v2,v3,v4
-wait N
-poll addr,mask,value
-poll.long addr,mask,value
-blockcopy type,src,dst,size
-loadacwindow value
+write addr,value                CCSR Write, 4 bytes
+write.b1 addr,value             CCSR Write, 1 byte
+awrite addr,word                AltConfig Write, 4 bytes (the same as .b3)
+awrite.bB addr,word[,word...]   AltConfig Write of 2^(B-1) bytes, B = 1..10,
+                                one operand word per 4 bytes
+wait count                      Wait, count up to 0xFFFF
+poll addr,mask,value            Poll Short
+poll.long addr,mask,value       Poll Long
+blockcopy type,src,dst,size     Block Copy
+loadacwindow value              Load Alt Config Window
+ccsrcopy.bN src,dest,words      CCSR Write from Address; .b1, .b2 or .b4
+                                is the width of the destination registers
+ccsrset.bN addr,mask            CCSR Read-Modify-Write: reg |= mask
+ccsrclear.bN addr,mask          CCSR Read-Modify-Write: reg &= ~mask
+ccsrreplace.bN addr,mask,data   CCSR Read-Modify-Write:
+                                reg = (reg & ~mask) | (data & mask);
+                                .b1, .b2 or .b4 is the access width
+loadsecurityheader w0,...,w19   Load Security Header: the 20 CSF header
+                                words, or a quoted hex text file name
+loadboot1csfptr addr            Load Boot 1 CSF Header Pointer
+loadc addr,mask                 Load Condition: *addr & mask, kept for
+                                the next jumpc
+jump target                     Jump
+jumpc target,condition          Jump Conditional: taken when the loaded
+                                condition equals condition
+label:                          a jump target, on a line of its own
 ```
 
-Parameters accept decimal, hexadecimal (**0x**), and arithmetic expressions
-(parentheses, **+**, **-**, **\***, **&**, **|**, **<<**, **>>**).
+The width suffix of **ccsrcopy**, **ccsrset**, **ccsrclear** and
+**ccsrreplace** is required. A jump *target* is a label, or a byte offset
+counted from the start of the jump itself (a multiple of 4, at least 8).
+**loadcondition** and **jumpif** are accepted as aliases of **loadc** and
+**jumpc**. **flush** is a command of the legacy PBI formats with no PBI
+format 2 encoding and is refused; its equivalent is a poll with an all-zero
+mask, **poll** *addr*,0,0.
+
+Operands are expressions à la Python's **eval()**: numbers as above,
+parentheses, **+**, **-**, **\***, **&**, **|**, **<<**, **>>**, and
+whatever macros the preprocessor expanded.
+
+The decompiler prints the same mnemonics and width suffixes back, with
+labels for the jump targets, and lists in a comment the RCW bits that no
+field of the *.rcwi* covers.
 
 ## .uboot block input
 
@@ -224,10 +307,32 @@ $ qoriq-rcw -i FCQQQQQQQQ_PPP_H_0x1d_0x0d/rcw_1600_qspi.rcw \
               -o rcw_1600_qspi.bin
 ```
 
-Override the system PLL ratio:
+Override the system PLL ratio (decimal or binary, as **rcw.py** reads it):
 
 ```
 $ qoriq-rcw -i config/rcw_2000.rcw -o rcw.bin -D SYS_PLL_RAT=10
+$ qoriq-rcw -i config/rcw_2000.rcw -o rcw.bin -D SYS_PLL_RAT=0b1010
+```
+
+Select a variant that the sources guard with **#ifdef**:
+
+```
+$ qoriq-rcw -i rcw_2000.rcw -o rcw.bin --define RCW_ERRATA_NO_TRIM
+```
+
+Check an image before flashing it; **-v** would list the 271 commands:
+
+```
+$ qoriq-rcw --check -i rcw_2000_700_2900_18_5_2.bin
+rcw_2000_700_2900_18_5_2.bin: 3156 bytes
+  RCW[PBI_LENGTH]=754 words, SB_EN=0
+  [PASS] preamble       : 0xaa55aa55 at offset 0
+  [PASS] load_cmd       : 0x80100000 (Load RCW with checksum)
+  [PASS] checksum       : stored 0xe317b9b3 matches computed sum
+  [PASS] terminator     : Stop at byte 3148, where RCW[PBI_LENGTH]=754 words points
+  [PASS] pbi_crc        : none (plain Stop terminator)
+  [PASS] pbi_commands   : 271 commands in 3016 bytes, terminator included
+  verdict: OK - the Service Processor/BootROM should accept this image
 ```
 
 Decompile a binary back to source:

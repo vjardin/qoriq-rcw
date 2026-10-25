@@ -12,6 +12,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,6 +23,7 @@
 
 #include "flash_db.h"
 #include "flash_dump.h"
+#include "pbl_check.h"
 #include "runtime_dump.h"
 #include "soc_db.h"
 
@@ -40,11 +42,12 @@ usage(const char *prog) {
 "Modes:\n"
 "  (default)     Compile  : -i SRC.rcw -o OUT.bin\n"
 "  -r            Decompile: -r -i IN.bin --rcwi FILE.rcwi -o OUT.rcw\n"
+"  --check       Check    : --check -i IMAGE.bin [-v]\n"
 "  --dump        Runtime  : --dump -o OUT.rcw [--rcwi FILE.rcwi]\n"
 "  --dump-flash  Flash    : --dump-flash -o OUT.rcw [--slot S] [--device PATH]\n"
 "\n"
 "Options:\n"
-"  -i FILE       Input filename (compile / decompile)\n"
+"  -i FILE       Input filename (compile / decompile / check)\n"
 "  -o FILE       Output filename (required; with --slot=all the slot\n"
 "                name is inserted before the extension: foo.rcw ->\n"
 "                foo.primary.rcw + foo.fallback.rcw)\n"
@@ -53,9 +56,15 @@ usage(const char *prog) {
 "                optional with --dump/--dump-flash if "
                   QORIQ_RCW_DATADIR " holds it)\n"
 "  -I PATH       Include path (can be repeated)\n"
-"  -D FIELD=VAL  Override bitfield value (can be repeated)\n"
+"  -D FIELD=VAL  Override bitfield value (can be repeated); VAL is read as\n"
+"                Python's int(VAL, 0): decimal, 0x..., 0o... or 0b...\n"
+"  --define M[=V] Define preprocessor macro M (as V, or 1) for the .rcw and\n"
+"                .rcwi files (can be repeated)\n"
 "  --no-pbl      Do not generate PBL preamble/end-command\n"
 "  -w            Enable warning messages\n"
+"  --check       Check a PBL image as the Service Processor does: Load RCW\n"
+"                checksum, Stop/CRC and Stop at RCW[PBI_LENGTH], PBI CRC\n"
+"  -v            With --check, list every PBI command as a .pbi line\n"
 "  --dump        Read live RCWSR registers via /dev/mem and emit a .rcw\n"
 "  --dump-flash  Read RCW from the boot medium (recovers PBI commands too)\n"
 "  --slot WHICH  primary | fallback | all (default: primary)\n"
@@ -432,6 +441,83 @@ cmd_dump_flash(rcw_ctx_t *ctx, const char *output_path, const char *user_rcwi,
   return rc == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
+/* Read a whole file; works on pipes too. NULL with errno set on failure. */
+static uint8_t *
+read_file(const char *path, size_t *len_out) {
+  FILE *f = fopen(path, "rb");
+  if (!f)
+    return NULL;
+
+  size_t cap = 4096, len = 0;
+  uint8_t *buf = malloc(cap);
+  while (buf) {
+    len += fread(buf + len, 1, cap - len, f);
+    if (len < cap)
+      break; /* EOF or error */
+    uint8_t *grown = realloc(buf, cap * 2);
+    if (!grown) {
+      free(buf);
+      buf = NULL;
+      break;
+    }
+    buf = grown;
+    cap *= 2;
+  }
+  if (!buf) {
+    fclose(f);
+    errno = ENOMEM;
+    return NULL;
+  }
+  if (ferror(f)) {
+    int saved = errno;
+    fclose(f);
+    free(buf);
+    errno = saved;
+    return NULL;
+  }
+  fclose(f);
+  *len_out = len;
+
+  return buf;
+}
+
+static void
+check_visit(const rcw_pbi_cmd_t *cmd, size_t off, void *arg) {
+  pbl_print_cmd(arg, cmd, RCW_PBL_PBI_OFFSET + off);
+}
+
+static int
+cmd_check(const char *input, int verbose) {
+  size_t len = 0;
+  uint8_t *buf = read_file(input, &len);
+  if (!buf)
+    err(EXIT_FAILURE, "%s", input);
+
+  printf("%s: %zu bytes\n", input, len);
+  if (verbose)
+    printf("  PBI commands (byte offset in the image, .pbi source line):\n");
+
+  /* Every pbiformat=2 .rcwi sets %littleendian=1. */
+  rcw_pbl_report_t rep;
+  rcw_pbl_verify(buf, len, 1, verbose ? check_visit : NULL, stdout, &rep);
+  free(buf);
+
+  if (rep.envelope == RCW_OK)
+    printf("  RCW[PBI_LENGTH]=%u words, SB_EN=%d\n", rep.pbl.pbi_length, rep.pbl.sb_en);
+
+  sanity_log_t log = {0};
+  pbl_sanity_run(&rep, len, NULL, &log);
+  for (size_t i = 0; i < log.count; i++) {
+    const sanity_entry_t *e = &log.entries[i];
+    printf("  [%s] %-14s : %s\n", sanity_status_label(e->status), e->id, e->detail);
+  }
+  if (len > rep.image_end)
+    printf("  %zu bytes follow the image\n", len - rep.image_end);
+  printf("  verdict: %s\n", rep.ok ? "OK - the Service Processor/BootROM should accept this image" : "FAIL");
+
+  return rep.ok ? EXIT_SUCCESS : EXIT_FAILURE;
+}
+
 enum {
   OPT_DUMP = 1000,
   OPT_MEM,
@@ -439,6 +525,8 @@ enum {
   OPT_DUMP_FLASH,
   OPT_SLOT,
   OPT_DEVICE,
+  OPT_CHECK,
+  OPT_DEFINE,
 };
 
 int
@@ -450,22 +538,29 @@ main(int argc, char **argv) {
   const char *device = NULL;
   const char *slot = NULL;
   int reverse = 0;
+  int check = 0;
+  int verbose = 0;
   int dump = 0;
   int dump_flash = 0;
   int force = 0;
   int no_pbl = 0;
   int warnings = 0;
 
-  /* Collect -D and -I options */
+  /* Collect -D, -I and --define options */
   const char *includes[32];
   int nincludes = 0;
   const char *defines[64];
   int ndefines = 0;
+  const char *macros[64];
+  int nmacros = 0;
 
   static struct option long_opts[] = {
     {"rcwi",       required_argument, NULL, 'R'},
     {"no-pbl",     no_argument,       NULL, 'P'},
+    {"define",     required_argument, NULL, OPT_DEFINE},
+    {"verbose",    no_argument,       NULL, 'v'},
     {"help",       no_argument,       NULL, 'h'},
+    {"check",      no_argument,       NULL, OPT_CHECK},
     {"dump",       no_argument,       NULL, OPT_DUMP},
     {"dump-flash", no_argument,       NULL, OPT_DUMP_FLASH},
     {"slot",       required_argument, NULL, OPT_SLOT},
@@ -476,7 +571,7 @@ main(int argc, char **argv) {
   };
 
   int opt;
-  while ((opt = getopt_long(argc, argv, "i:o:rI:D:wh", long_opts, NULL)) != -1) {
+  while ((opt = getopt_long(argc, argv, "i:o:rI:D:wvh", long_opts, NULL)) != -1) {
     switch (opt) {
       case 'i': input = optarg; break;
       case 'o': output = optarg; break;
@@ -488,8 +583,13 @@ main(int argc, char **argv) {
       case 'D':
         if (ndefines < 64) defines[ndefines++] = optarg;
         break;
+      case OPT_DEFINE:
+        if (nmacros < 64) macros[nmacros++] = optarg;
+        break;
       case 'P': no_pbl = 1; break;
       case 'w': warnings = 1; break;
+      case 'v': verbose = 1; break;
+      case OPT_CHECK:       check = 1; break;
       case OPT_DUMP:        dump = 1; break;
       case OPT_DUMP_FLASH:  dump_flash = 1; break;
       case OPT_SLOT:        slot = optarg; break;
@@ -506,14 +606,17 @@ main(int argc, char **argv) {
   }
 
   /* Mode validation. */
-  int mode_count = (dump != 0) + (dump_flash != 0) + (reverse != 0);
+  int mode_count = (dump != 0) + (dump_flash != 0) + (reverse != 0) + (check != 0);
   if (mode_count > 1)
     errx(EXIT_FAILURE,
-         "--dump, --dump-flash and -r are mutually exclusive");
+         "--dump, --dump-flash, --check and -r are mutually exclusive");
   if ((dump || dump_flash) && input)
     errx(EXIT_FAILURE,
          "--dump/--dump-flash do not take -i");
-  if (!dump && !dump_flash) {
+  if (check) {
+    if (!input)
+      errx(EXIT_FAILURE, "--check requires -i");
+  } else if (!dump && !dump_flash) {
     if (!input) {
       warnx("-i is required");
       usage(argv[0]);
@@ -547,25 +650,36 @@ main(int argc, char **argv) {
    * qoriq-rcw-data package is installed. Cheap if the dir is absent. */
   rcw_ctx_add_include_path(ctx, QORIQ_RCW_DATADIR);
 
-  for (int i = 0; i < ndefines; i++) {
-    char *eq = strchr(defines[i], '=');
-    if (!eq) {
-      rcw_ctx_free(ctx);
-      errx(EXIT_FAILURE, "bad -D syntax: %s", defines[i]);
-    }
-    *eq = '\0';
-    uint64_t val = strtoull(eq + 1, NULL, 0);
-    rcw_error_t rcw_err = rcw_ctx_set_bitfield(ctx, defines[i], val);
-    *eq = '='; /* restore for error messages */
+  /* --define: macros for mcpp, seen by the .rcw and by the .rcwi that
+   * the decompile and dump modes preprocess alike. */
+  for (int i = 0; i < nmacros; i++) {
+    rcw_error_t rcw_err = rcw_ctx_add_define(ctx, macros[i], NULL);
     if (rcw_err != RCW_OK) {
       rcw_ctx_free(ctx);
-      errx(EXIT_FAILURE, "%s", rcw_strerror(rcw_err));
+      errx(EXIT_FAILURE, "--define %s: %s", macros[i],
+           rcw_err == RCW_ERR_PARSE ? "want NAME or NAME=VALUE" :
+           rcw_err == RCW_ERR_NOMEM ? "too many macros" : rcw_strerror(rcw_err));
+    }
+  }
+
+  /* -D FIELD=VALUE: the bitfield override */
+  for (int i = 0; i < ndefines; i++) {
+    rcw_error_t rcw_err = rcw_ctx_set_bitfield_text(ctx, defines[i]);
+    if (rcw_err != RCW_OK) {
+      char why[256];
+      snprintf(why, sizeof(why), "%s",
+               rcw_err == RCW_ERR_PARSE ? rcw_ctx_last_error_detail(ctx) :
+               rcw_err == RCW_ERR_NOMEM ? "too many overrides" : rcw_strerror(rcw_err));
+      rcw_ctx_free(ctx);
+      errx(EXIT_FAILURE, "-D: %s (NAME=VALUE, VALUE as Python's int(x, 0): decimal, 0x, 0o or 0b)", why);
     }
   }
 
   int status = EXIT_SUCCESS;
 
-  if (dump) {
+  if (check) {
+    status = cmd_check(input, verbose);
+  } else if (dump) {
     status = cmd_dump(ctx, output, rcwi, mem_path, force);
   } else if (dump_flash) {
     status = cmd_dump_flash(ctx, output, rcwi, mem_path,

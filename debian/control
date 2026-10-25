@@ -7,7 +7,7 @@ Build-Depends:
  meson,
  ninja-build,
  pkg-config,
- libqoriq-rcw-dev (>= 0.2.0),
+ libqoriq-rcw-dev (>= 1.3.0),
  libmcpp-dev,
  libcmocka-dev,
  pandoc
@@ -25,10 +25,14 @@ Description: QorIQ Reset Configuration Word compiler (CLI)
  LS2088, LX2160 families) and decompiles binary images back to RCW
  source text. It is built on top of libqoriq-rcw.
  .
- The CLI also supports a --dump mode that reads the live RCW snapshot
- from /dev/mem on a running QorIQ/Layerscape board, runs sanity
- checks, and emits a recompilable .rcw file. Install qoriq-rcw-data
- to use --dump (and decompiled output) without --rcwi/-I flags.
+ The CLI also checks an image the way the BootROM would do
+ before it is flashed (--check), reads the live RCW snapshot from
+ /dev/mem on a running QorIQ/Layerscape board (--dump) or the RCW and
+ PBI commands from its boot flash (--dump-flash), runs sanity checks,
+ and emits a recompilable .rcw file. Install qoriq-rcw-data to use the
+ dump modes (and decompiled output) without --rcwi/-I flags.
+ .
+ Use the ckeck to avoid flashing on a sytem that would not boot.
 
 Package: qoriq-rcw-data
 Architecture: all

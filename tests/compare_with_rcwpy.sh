@@ -3,7 +3,8 @@
 # Copyright 2026 Free Mobile - Vincent Jardin
 #
 # Cross-validation: compile all pbiformat=2 boards with both rcw.py and
-# qoriq-rcw, then compare the binary outputs byte-for-byte.
+# qoriq-rcw, compare the binary outputs byte-for-byte, then check every
+# image with qoriq-rcw --check
 #
 # This script is for development validation only.
 #
@@ -105,14 +106,20 @@ for board in $BOARDS; do
 		fi
 
 		# Compare
-		if cmp -s "$py_out" "$c_out"; then
-			echo "  PASS"
-			PASS=$((PASS + 1))
-		else
+		if ! cmp -s "$py_out" "$c_out"; then
 			echo "  FAIL: output differs"
 			FAIL=$((FAIL + 1))
+			continue
 		fi
 
+		if ! "$QORIQ_RCW" --check -i "$c_out" >/dev/null 2>&1; then
+			echo "  FAIL: qoriq-rcw --check rejects the image"
+			FAIL=$((FAIL + 1))
+			continue
+		fi
+
+		echo "  PASS"
+		PASS=$((PASS + 1))
 		rm -f "$py_out" "$c_out"
 	done
 done

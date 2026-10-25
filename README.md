@@ -18,19 +18,19 @@ Supported platforms: LS1028, LS1088, LS2088, and LX2160 families (PBI format 2).
 
 - C17 compiler (gcc or clang)
 - Meson (>= 0.56) and Ninja
-- `libqoriq-rcw` (built automatically as part of the same Meson project)
-- gcc in `PATH` at runtime (used as the C preprocessor for `.rcw` files)
+- `libqoriq-rcw`
+- `libmcpp-dev`
+- `libcmocka-dev` for the unit tests, `pandoc` for the man page (both optional)
 
 ## Build
 
-From the repository root (`rcw/`):
-
 ```bash
-meson setup build
+meson setup build                                        # libqoriq-rcw installed system-wide
+meson setup build -Dlibqoriq-rcw-path=../libqoriq-rcw    # for a local copy
 meson compile -C build
 ```
 
-The `qoriq-rcw` binary is at `build/qoriq-rcw/qoriq-rcw`.
+The `qoriq-rcw` binary is at `build/qoriq-rcw`.
 
 ## Test
 
@@ -38,7 +38,7 @@ The `qoriq-rcw` binary is at `build/qoriq-rcw/qoriq-rcw`.
 meson test -C build
 ```
 
-The test suite includes a cross-validation script that compiles every `.rcw` configuration for all supported boards with both `qoriq-rcw` and the reference `rcw.py`, then compares the outputs byte-for-byte. This requires Python 3.
+The test suite includes a cross-validation script that compiles every `.rcw` configuration for all supported boards with both `qoriq-rcw` and the reference `rcw.py`, compares the outputs byte-for-byte, then runs `qoriq-rcw --check` on every image. This requires Python 3 and a clone of [nxp-qoriq/rcw](https://github.com/nxp-qoriq/rcw) (`-Drcw-ref-dir=PATH`, or `../rcw`).
 
 ## Install
 
@@ -102,10 +102,20 @@ cd ls1088ardb
 qoriq-rcw -i FCQQQQQQQQ_PPP_H_0x1d_0x0d/rcw_1600_qspi.rcw -o rcw.bin
 ```
 
-Override a bitfield value:
+Override a bitfield value (the value reads like Python's `int(x, 0)`:
+decimal, `0x`, `0o` or `0b`):
 
 ```bash
 qoriq-rcw -i config/rcw_2000.rcw -o rcw.bin -D SYS_PLL_RAT=10
+qoriq-rcw -i config/rcw_2000.rcw -o rcw.bin -D SYS_PLL_RAT=0b1010
+```
+
+Define a preprocessor macro, for sources that select variants with
+`#ifdef` (the LX2160A errata and SerDes protocol files do):
+
+```bash
+qoriq-rcw -i rcw_2000.rcw -o rcw.bin --define RCW_ERRATA_NO_TRIM
+qoriq-rcw -i rcw_2000.rcw -o rcw.bin --define SRDS_PRTCL_S1_VAL=0x13
 ```
 
 Add an include path:
@@ -118,6 +128,12 @@ Produce raw RCW data without PBL preamble:
 
 ```bash
 qoriq-rcw -i rcw_2000.rcw -o rcw_raw.bin --no-pbl
+```
+
+Check an image before flashing it, the way the BootROM's Service Processor would likely do:
+
+```bash
+qoriq-rcw --check -i rcw.bin -v
 ```
 
 Decompile a binary back to source:
