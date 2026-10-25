@@ -285,9 +285,124 @@ test_print(void **state) {
   assert_string_equal(pbl_op_label(RCW_PBI_WAIT), "wait");
 }
 
+/*
+ * SolidRun's auto-boot shape: loadc PORSR1, jumpc over a jump, the block
+ * copy of one boot source.
+ */
+#define COND_PBI                                              \
+  ".pbi\n"                                                    \
+  "loadc 0x01e00000,(0xf << 23)\n"                           \
+  "jumpc sd,(0x8 << 23)\n"                                   \
+  "jump done\n"                                               \
+  "sd:\n"                                                     \
+  "blockcopy 0x08,0x0000a000,0x1800d000,0x00020000\n"       \
+  "write 0x01e00400,0x1800d000\n"                            \
+  "done:\n"                                                   \
+  ".end\n"
+#define COND_IMG_BYTES (RCW_PBL_PBI_OFFSET + 64)
+#define COND_WRITE_AT  (RCW_PBL_PBI_OFFSET + 48)
+
+static void
+test_conditional_image(void **state) {
+  (void)state;
+  uint8_t img[256];
+  size_t len = fix_compile(FIX_HDR "%nocrc=1\n" COND_PBI, img, sizeof(img));
+  assert_int_equal(len, COND_IMG_BYTES);
+
+  rcw_pbl_report_t r;
+  sanity_log_t log;
+  verify(img, len, &r, &log);
+  assert_int_equal(r.pbi, RCW_ERR_PBI_CONDITIONAL);
+  assert_false(r.ok);
+  assert_true(r.checksum_ok);
+  assert_true(r.crc_ok);
+  assert_int_equal(r.chk.ncmd, 2);
+  assert_int_equal(r.image_end, len);
+
+  assert_false(log.any_failed);
+  assert_int_equal(find_entry(&log, "terminator")->status, SANITY_PASS);
+  assert_non_null(strstr(find_entry(&log, "terminator")->detail, "Stop at byte 196"));
+  assert_int_equal(find_entry(&log, "jumpc")->status, SANITY_WARN);
+  assert_non_null(strstr(find_entry(&log, "jumpc")->detail, "Jump Conditional at byte 152"));
+  assert_int_equal(find_entry(&log, "pbi_crc")->status, SANITY_PASS);
+  assert_non_null(strstr(find_entry(&log, "pbi_crc")->detail, "none"));
+  assert_non_null(strstr(find_entry(&log, "pbi_commands")->detail, "2 commands walked, up to the Jump Conditional at byte 152"));
+
+  len = fix_compile(FIX_HDR COND_PBI, img, sizeof(img));
+  assert_int_equal(len, COND_IMG_BYTES);
+  verify(img, len, &r, &log);
+  assert_false(log.any_failed);
+  assert_non_null(strstr(find_entry(&log, "terminator")->detail, "CRC and Stop at byte 196"));
+  assert_non_null(strstr(find_entry(&log, "pbi_crc")->detail, "matches"));
+
+  img[COND_WRITE_AT + 4] ^= 0x01;
+  verify(img, len, &r, &log);
+  assert_true(log.any_failed);
+  assert_int_equal(find_entry(&log, "jumpc")->status, SANITY_WARN);
+  assert_int_equal(find_entry(&log, "pbi_crc")->status, SANITY_FAIL);
+}
+
+static void
+test_jump_out_of_range(void **state) {
+  (void)state;
+  uint8_t img[256];
+  /* jump at PBI byte 0, 0x100 past a 20-byte PBI */
+  size_t len = fix_compile(FIX_HDR "%nocrc=1\n" ".pbi\njump 0x100\nwait 1\n.end\n", img, sizeof(img));
+  assert_int_equal(len, RCW_PBL_PBI_OFFSET + 20);
+
+  rcw_pbl_report_t r;
+  sanity_log_t log;
+  verify(img, len, &r, &log);
+  assert_int_equal(r.pbi, RCW_ERR_PBI_JUMP);
+  assert_true(log.any_failed);
+  assert_int_equal(find_entry(&log, "terminator")->status, SANITY_FAIL);
+  assert_non_null(strstr(find_entry(&log, "terminator")->detail, "jump at byte 140: offset 0x00000100"));
+  assert_null(find_entry(&log, "jumpc"));
+  assert_null(find_entry(&log, "pbi_crc"));
+}
+
+static void
+test_jumpc_without_condition(void **state) {
+  (void)state;
+  uint8_t img[256];
+  size_t len = fix_compile(FIX_HDR "%nocrc=1\n" ".pbi\njumpc 0x10,0x1\nwait 1\nwait 1\n.end\n", img, sizeof(img));
+  assert_int_equal(len, RCW_PBL_PBI_OFFSET + 28);
+
+  rcw_pbl_report_t r;
+  sanity_log_t log;
+  verify(img, len, &r, &log);
+  assert_int_equal(r.pbi, RCW_ERR_PBI_NO_CONDITION);
+  assert_true(log.any_failed);
+  assert_int_equal(find_entry(&log, "terminator")->status, SANITY_FAIL);
+  assert_non_null(strstr(find_entry(&log, "terminator")->detail, "Jump Conditional at byte 140 before any Load Condition"));
+}
+
+static void
+test_overrun(void **state) {
+  (void)state;
+  uint8_t img[256];
+  size_t len = compile(FIX_SRC_STOP, img, sizeof(img));
+  /* Points inside the blockcopy. */
+  fix_set_pbi_length(img, 3);
+  fix_checksum(img);
+
+  rcw_pbl_report_t r;
+  sanity_log_t log;
+  verify(img, len, &r, &log);
+  assert_int_equal(r.pbi, RCW_ERR_PBI_OVERRUN);
+  assert_true(log.any_failed);
+  assert_int_equal(find_entry(&log, "terminator")->status, SANITY_FAIL);
+  assert_non_null(strstr(find_entry(&log, "terminator")->detail, "blockcopy at byte 148 runs past RCW[PBI_LENGTH]=3 words"));
+  assert_null(find_entry(&log, "pbi_crc"));
+}
+
 int
 main(void) {
   const struct CMUnitTest tests[] = {
+    cmocka_unit_test(test_conditional_image),
+    cmocka_unit_test(test_jump_out_of_range),
+    cmocka_unit_test(test_jumpc_without_condition),
+    cmocka_unit_test(test_overrun),
     cmocka_unit_test(test_stop_image),
     cmocka_unit_test(test_crcstop_image),
     cmocka_unit_test(test_without_checksum),

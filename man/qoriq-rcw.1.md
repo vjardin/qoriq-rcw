@@ -105,12 +105,10 @@ commands, and a CRC or Stop terminator.
     terminator must be a command, and the command **RCW[PBI_LENGTH]**
     points at must be a Stop or a CRC and Stop, RM section 8.2.6),
     *pbi_crc* (when the terminator is a CRC and Stop) and *pbi_commands*.
-    The verdict is **OK** when the image passes every check, and the exit
-    status follows it. Words are read little-endian, as on every PBI format
-    2 platform. An image terminated by a plain Stop has no CRC: a corrupted
-    PBI operand is then invisible to this check, as it is to the Service
-    Processor. Mutually exclusive with **-r**, **\-\-dump** and
-    **\-\-dump-flash**.
+    The walk follows the jumps as the Service Processor's BootROM should do.
+    A Jump Conditional depends on a register read at boot, so the walk stops
+    there: the terminator and the CRC are still checked, the commands past
+    it are not walked, and a *jumpc* WARN says so.
 
 **-v**, **\-\-verbose**
 :   With **\-\-check**, list every PBI command executed, terminator included,
@@ -176,7 +174,8 @@ commands, and a CRC or Stop terminator.
 # EXIT STATUS
 
 **0**
-:   Success. With **\-\-check**, the image passed every check.
+:   Success. With **\-\-check**, no check failed; a WARN does not fail the
+    image.
 
 **1**
 :   An error occurred (preprocessing failure, parse error, I/O error, etc.),

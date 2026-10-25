@@ -155,7 +155,7 @@ flash_dump_write_header(FILE *out,
 " * PORSR1        : 0x%08x  (RCW_SRC=0b%u%u%u%u -> %s)\n"
 " * Boot device   : %s\n"
 " * Slot          : %s  (offset 0x%08llx, %zu/%zu bytes PBL/read)\n"
-" * PBI           : RCW[PBI_LENGTH]=%u words, %zu commands incl. terminator, SB_EN=%u\n"
+" * PBI           : RCW[PBI_LENGTH]=%u words, %zu commands walked, SB_EN=%u\n"
 " *\n"
 " * Sanity checks:\n"
     , slot->name

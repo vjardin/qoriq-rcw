@@ -513,9 +513,12 @@ cmd_check(const char *input, int verbose) {
   }
   if (len > rep.image_end)
     printf("  %zu bytes follow the image\n", len - rep.image_end);
-  printf("  verdict: %s\n", rep.ok ? "OK - the Service Processor/BootROM should accept this image" : "FAIL");
 
-  return rep.ok ? EXIT_SUCCESS : EXIT_FAILURE;
+  /* A Jump Conditional leaves the path to the hardware: the checks made before execution decide. */
+  bool accepted = rep.ok || (rep.pbi == RCW_ERR_PBI_CONDITIONAL && rep.checksum_ok && rep.crc_ok);
+  printf("  verdict: %s\n", accepted ? "OK - the Service Processor/BootROM should accept this image" : "FAIL");
+
+  return accepted ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 enum {

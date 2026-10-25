@@ -6,7 +6,7 @@ Build-Depends:
  meson,
  ninja-build,
  pkgconf,
- libqoriq-rcw-dev (>= 1.3.0),
+ libqoriq-rcw-dev (>= 1.4.0),
  libcmocka-dev <!nocheck>,
  pandoc
 Standards-Version: 4.7.3

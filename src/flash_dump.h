@@ -39,7 +39,7 @@ typedef struct {
   /* From the envelope and the PBI check, populated by flash_dump_sanity_run(). */
   uint32_t    pbi_length;  /* RCW[PBI_LENGTH], in 32-bit words */
   bool        sb_en;       /* RCW[SB_EN] */
-  size_t      ncmd;        /* PBI commands executed, terminator included */
+  size_t      ncmd;        /* PBI commands walked */
 } flash_slot_t;
 
 void flash_slot_free(flash_slot_t *slot);

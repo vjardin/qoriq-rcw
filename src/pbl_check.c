@@ -5,6 +5,7 @@
 
 #define _POSIX_C_SOURCE 200809L
 
+#include <stdbool.h>
 #include <string.h>
 
 #include "pbl_check.h"
@@ -40,8 +41,10 @@ pbl_sanity_run(const rcw_pbl_report_t *rep, size_t len, const uint8_t *live_rcw,
     sanity_log_add(log, SANITY_FAIL, "checksum", "stored 0x%08x != computed 0x%08x", pbl->checksum, pbl->checksum_computed);
 
   /* terminator - the Boot 0 Reset Handler's PBI check */
+  bool checked = rep->pbi == RCW_OK || rep->pbi == RCW_ERR_PBI_CONDITIONAL;
   switch (rep->pbi) {
     case RCW_OK:
+    case RCW_ERR_PBI_CONDITIONAL:
       if (chk->len == 0)
         sanity_log_add(log, SANITY_WARN, "terminator", "RCW[PBI_LENGTH]=0 - no PBI, the bootrom runs nothing after the RCW");
       else
@@ -51,6 +54,17 @@ pbl_sanity_run(const rcw_pbl_report_t *rep, size_t len, const uint8_t *live_rcw,
     case RCW_ERR_PBI_LENGTH:
       sanity_log_add(log, SANITY_FAIL, "terminator", "RCW[PBI_LENGTH]=%u words does not point at a Stop/CRC and Stop (walk ended at byte %zu after %zu commands)",
                      pbl->pbi_length, RCW_PBL_PBI_OFFSET + chk->end, chk->ncmd);
+      break;
+    case RCW_ERR_PBI_OVERRUN:
+      sanity_log_add(log, SANITY_FAIL, "terminator", "%s at byte %zu runs past RCW[PBI_LENGTH]=%u words",
+                     pbl_op_label(chk->cmd.op), RCW_PBL_PBI_OFFSET + chk->end, pbl->pbi_length);
+      break;
+    case RCW_ERR_PBI_JUMP:
+      sanity_log_add(log, SANITY_FAIL, "terminator", "%s at byte %zu: offset 0x%08x is not a multiple of 4 above 8, or lands at or past RCW[PBI_LENGTH]=%u words",
+                     pbl_op_label(chk->cmd.op), RCW_PBL_PBI_OFFSET + chk->end, chk->cmd.args[0], pbl->pbi_length);
+      break;
+    case RCW_ERR_PBI_NO_CONDITION:
+      sanity_log_add(log, SANITY_FAIL, "terminator", "Jump Conditional at byte %zu before any Load Condition", RCW_PBL_PBI_OFFSET + chk->end);
       break;
     case RCW_ERR_BAD_BINARY:
       sanity_log_add(log, SANITY_FAIL, "terminator", "word 0x%08x at byte %zu is not a PBI command", chk->cmd.word, RCW_PBL_PBI_OFFSET + chk->end);
@@ -64,8 +78,13 @@ pbl_sanity_run(const rcw_pbl_report_t *rep, size_t len, const uint8_t *live_rcw,
       break;
   }
 
+  /* jumpc - the path the image leaves to the hardware */
+  if (rep->pbi == RCW_ERR_PBI_CONDITIONAL)
+    sanity_log_add(log, SANITY_WARN, "jumpc", "Jump Conditional at byte %zu: the path taken depends on a register read at boot, the commands after it are not walked",
+                   RCW_PBL_PBI_OFFSET + chk->end);
+
   /* pbi_crc */
-  if (rep->pbi == RCW_OK && chk->len > 0) {
+  if (checked && chk->len > 0) {
     if (chk->stop_op != RCW_PBI_CRC_STOP)
       sanity_log_add(log, SANITY_PASS, "pbi_crc", "none (plain Stop terminator)");
     else if (rep->crc_ok)
@@ -83,7 +102,10 @@ pbl_sanity_run(const rcw_pbl_report_t *rep, size_t len, const uint8_t *live_rcw,
   }
 
   /* pbi_commands - informational */
-  sanity_log_add(log, SANITY_PASS, "pbi_commands", "%zu commands in %zu bytes, terminator included", chk->ncmd, chk->end);
+  if (rep->pbi == RCW_ERR_PBI_CONDITIONAL)
+    sanity_log_add(log, SANITY_PASS, "pbi_commands", "%zu commands walked, up to the Jump Conditional at byte %zu", chk->ncmd, RCW_PBL_PBI_OFFSET + chk->end);
+  else
+    sanity_log_add(log, SANITY_PASS, "pbi_commands", "%zu commands in %zu bytes, terminator included", chk->ncmd, chk->end);
 }
 
 const char *
