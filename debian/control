@@ -1,17 +1,15 @@
 Source: qoriq-rcw
 Section: utils
-Priority: optional
 Maintainer: Vincent Jardin <vjardin@free.fr>
 Build-Depends:
  debhelper-compat (= 13),
  meson,
  ninja-build,
- pkg-config,
+ pkgconf,
  libqoriq-rcw-dev (>= 1.3.0),
- libmcpp-dev,
- libcmocka-dev,
+ libcmocka-dev <!nocheck>,
  pandoc
-Standards-Version: 4.6.2
+Standards-Version: 4.7.3
 Homepage: https://github.com/vjardin/qoriq-rcw
 Rules-Requires-Root: no
 
@@ -32,7 +30,8 @@ Description: QorIQ Reset Configuration Word compiler (CLI)
  and emits a recompilable .rcw file. Install qoriq-rcw-data to use the
  dump modes (and decompiled output) without --rcwi/-I flags.
  .
- Use the ckeck to avoid flashing on a sytem that would not boot.
+ Run --check on an image before flashing it: an image the Service
+ Processor's BootROM rejects could leave the board silent after a reboot.
 
 Package: qoriq-rcw-data
 Architecture: all

@@ -1,0 +1,3 @@
+Tests: roundtrip
+Depends: qoriq-rcw, qoriq-rcw-data
+Restrictions: allow-stderr

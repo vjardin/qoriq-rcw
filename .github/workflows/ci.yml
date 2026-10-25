@@ -212,7 +212,7 @@ jobs:
     # (24.04, 26.04) and the two latest Debian stable releases (12 bookworm,
     # 13 trixie), on both amd64 and arm64. The CLI deb depends on
     # libqoriq-rcw-dev at build time, so each cell first builds and installs
-    # libqoriq-rcw0 and libqoriq-rcw-dev from a sibling clone, then builds
+    # libqoriq-rcw1 and libqoriq-rcw-dev from a sibling clone, then builds
     # the qoriq-rcw deb against the installed library.
     strategy:
       fail-fast: false
@@ -258,7 +258,7 @@ jobs:
         run: |
           export DEBIAN_FRONTEND=noninteractive
           apt-get install -y --no-install-recommends \
-            ./libqoriq-rcw0_*.deb ./libqoriq-rcw-dev_*.deb
+            ./libqoriq-rcw[0-9]_*.deb ./libqoriq-rcw-dev_*.deb
 
       - name: Build qoriq-rcw .deb
         working-directory: qoriq-rcw

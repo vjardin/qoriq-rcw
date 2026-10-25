@@ -4,10 +4,18 @@
 
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
+ifneq (,$(filter nocheck,$(DEB_BUILD_OPTIONS) $(DEB_BUILD_PROFILES)))
+TESTS = disabled
+else
+TESTS = enabled
+endif
+
 %:
 	dh $@ --buildsystem=meson
 
-# Skip the cross-validation test (requires a clone of nxp-qoriq/rcw and
-# rcw.py which are not available in the build environment).
+override_dh_auto_configure:
+	dh_auto_configure -- -Dtests=$(TESTS)
+
+# The cross-validation suite needs a clone of nxp-qoriq/rcw.
 override_dh_auto_test:
-	:
+	dh_auto_test -- --suite unit

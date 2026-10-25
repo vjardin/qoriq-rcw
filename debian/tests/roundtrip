@@ -1,0 +1,37 @@
+#!/bin/sh
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright 2026 Free Mobile -- Vincent Jardin
+#
+# Compile an RCW against the installed lx2160a.rcwi, check the image,
+# decompile it, recompile the result, and compare the two images.
+
+set -eu
+
+cd "${AUTOPKGTEST_TMP:-$(mktemp -d)}"
+
+cat > board.rcw <<'SRC'
+#include <lx2160a.rcwi>
+
+SYS_PLL_RAT=14
+MEM_PLL_RAT=21
+SRDS_PRTCL_S1=19
+BOOT_LOC=26
+
+.pbi
+write 0x01e00400,0x1800d000
+loadc 0x01e00000,(0xf << 23)
+jumpc sd,(0x8 << 23)
+jump done
+sd:
+blockcopy 0x08,0x0000a000,0x1800d000,0x00020000
+done:
+.end
+SRC
+
+qoriq-rcw -i board.rcw -o board.bin
+qoriq-rcw --check -i board.bin
+qoriq-rcw -r -i board.bin --rcwi /usr/share/qoriq-rcw/lx2160a.rcwi -o board-r.rcw
+grep -q '^jumpc L0,' board-r.rcw
+qoriq-rcw -i board-r.rcw -o board-r.bin
+cmp board.bin board-r.bin
+echo "round trip identical: $(wc -c < board.bin) bytes"
