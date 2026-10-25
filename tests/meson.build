@@ -12,9 +12,10 @@ if cmocka_dep.found()
   test('test_soc_db', test_soc_db, suite : 'unit')
 
   test_runtime_dump = executable('test_runtime_dump',
-    ['test_runtime_dump.c', '../src/runtime_dump.c', '../src/soc_db.c'],
+    ['test_runtime_dump.c', '../src/runtime_dump.c', '../src/sanity_log.c',
+     '../src/soc_db.c'],
     include_directories : test_inc,
-    dependencies : [cmocka_dep])
+    dependencies : [cmocka_dep, libqoriq_rcw_dep])
   test('test_runtime_dump', test_runtime_dump, suite : 'unit')
 
   test_flash_db = executable('test_flash_db',
@@ -23,11 +24,18 @@ if cmocka_dep.found()
     dependencies : [cmocka_dep])
   test('test_flash_db', test_flash_db, suite : 'unit')
 
-  test_flash_dump = executable('test_flash_dump',
-    ['test_flash_dump.c', '../src/flash_dump.c',
-     '../src/runtime_dump.c', '../src/soc_db.c', '../src/flash_db.c'],
+  test_pbl_check = executable('test_pbl_check',
+    ['test_pbl_check.c', '../src/pbl_check.c', '../src/sanity_log.c'],
     include_directories : test_inc,
-    dependencies : [cmocka_dep])
+    dependencies : [cmocka_dep, libqoriq_rcw_dep])
+  test('test_pbl_check', test_pbl_check, suite : 'unit')
+
+  test_flash_dump = executable('test_flash_dump',
+    ['test_flash_dump.c', '../src/flash_dump.c', '../src/pbl_check.c',
+     '../src/runtime_dump.c', '../src/sanity_log.c', '../src/soc_db.c',
+     '../src/flash_db.c'],
+    include_directories : test_inc,
+    dependencies : [cmocka_dep, libqoriq_rcw_dep])
   test('test_flash_dump', test_flash_dump, suite : 'unit')
 endif
 

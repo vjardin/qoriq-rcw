@@ -37,7 +37,7 @@ if libqoriq_rcw_path != ''
     dependencies : [libqoriq_rcw_lib, mcpp_dep],
     compile_args : ['-I' + lib_src / 'include'])
 else
-  libqoriq_rcw_dep = dependency('libqoriq-rcw', required : true)
+  libqoriq_rcw_dep = dependency('libqoriq-rcw', version : '>= 1.3.0', required : true)
 endif
 
 datadir = get_option('prefix') / get_option('datadir') / 'qoriq-rcw'
@@ -46,7 +46,9 @@ cli_sources = files(
   'src/flash_db.c',
   'src/flash_dump.c',
   'src/main.c',
+  'src/pbl_check.c',
   'src/runtime_dump.c',
+  'src/sanity_log.c',
   'src/soc_db.c',
 )
 

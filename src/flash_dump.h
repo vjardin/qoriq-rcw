@@ -29,11 +29,17 @@ typedef struct {
   const char *name;        /* "primary" | "fallback" */
   uint64_t    offset;      /* offset within the boot device */
   uint8_t    *data;        /* malloc()'d; caller frees */
-  size_t      data_len;    /* bytes read from device (< FLASH_SLOT_READ_BYTES) */
-  size_t      pbl_len;     /* preamble..terminator-value extent within data; populated by flash_dump_sanity_run().
-                            * Use this length (not data_len) when feeding the slot to rcw_decompile_buffer() - it strips the
-                            * 0xFF flash padding that follows the terminator.
-			    */
+  size_t      data_len;    /* bytes read from device (<= FLASH_SLOT_READ_BYTES) */
+  size_t      pbl_len;     /* preamble through the terminator value, as the PBI check finds it
+                            * (rcw_pbl_report_t.image_end); populated by flash_dump_sanity_run().
+                            * Use this length (not data_len) when feeding the slot to
+                            * rcw_decompile_buffer() - it strips the 0xFF flash padding that
+                            * follows the terminator.
+                            */
+  /* From the envelope and the PBI check, populated by flash_dump_sanity_run(). */
+  uint32_t    pbi_length;  /* RCW[PBI_LENGTH], in 32-bit words */
+  bool        sb_en;       /* RCW[SB_EN] */
+  size_t      ncmd;        /* PBI commands executed, terminator included */
 } flash_slot_t;
 
 void flash_slot_free(flash_slot_t *slot);
@@ -48,29 +54,28 @@ void flash_slot_free(flash_slot_t *slot);
 int flash_dump_read_slot(const char *device, uint64_t offset, const char *slot_name, flash_slot_t *out, char *err, size_t errlen);
 
 /*
- * Run the sanity battery on a slot's bytes:
+ * Run the sanity battery on a slot's bytes: rcw_pbl_verify() then
+ * pbl_sanity_run() (see pbl_check.h for the entries), with `live_rcw`
+ * compared against the on-flash RCW when non-NULL.
  *
- *   preamble        : first 4 bytes are 0xAA55AA55 (little-endian)
- *   load_cmd        : bytes 4..7 are 0x80100000 (with-checksum) or 0x80110000 (without)
- *   checksum        : when with-checksum, recomputes the 32-bit sum across preamble..RCW and compares
- *   terminator      : finds 0x808F0000 (CRC+Stop) or 0x80FF0000 (Stop) within the buffer
- *   rcw_consistent  : the on-flash 128-byte RCW matches `live_rcw` (if non-NULL); pass NULL to skip
- *   pbi_recovered   : informational PASS - N bytes of PBI commands recovered (vs --dump which loses them)
+ * Sets slot->pbl_len to the image extent and slot->pbi_length / sb_en /
+ * ncmd from the envelope and the check.
  */
-void flash_dump_sanity_run(const flash_slot_t *slot,
+void flash_dump_sanity_run(flash_slot_t *slot,
                            const uint8_t *live_rcw,   /* may be NULL */
                            sanity_log_t *log);
 
 /*
  * Optional cross-slot check: append a fallback_match entry comparing
- * `primary` and `fallback` slot bytes (preamble through terminator).
+ * the PBL images of `primary` and `fallback` (pbl_len bytes each).
  * Either operand may be NULL/empty (recorded as WARN).
  */
 void flash_dump_compare_slots(const flash_slot_t *primary, const flash_slot_t *fallback, sanity_log_t *log);
 
 /*
  * Write the C-comment header describing a flash slot dump (SoC, boot
- * source/device, slot offset/size, sanity log, capture time, version).
+ * source/device, slot offset/size, PBI summary, sanity log, capture
+ * time, version).
  */
 int flash_dump_write_header(FILE *out,
                             const soc_info_t *soc,

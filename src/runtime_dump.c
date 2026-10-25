@@ -7,7 +7,6 @@
 
 #include <errno.h>
 #include <fcntl.h>
-#include <stdarg.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -17,25 +16,11 @@
 #include <time.h>
 #include <unistd.h>
 
+#include <qoriq-rcw/rcw.h>
+
 #include "runtime_dump.h"
 
-static void
-log_add(sanity_log_t *log, sanity_status_t st, const char *id, const char *fmt, ...) {
-  if (log->count >= SANITY_LOG_MAX)
-    return;
-
-  sanity_entry_t *e = &log->entries[log->count++];
-  e->status = st;
-  e->id = id;
-
-  va_list ap;
-  va_start(ap, fmt);
-  vsnprintf(e->detail, sizeof(e->detail), fmt, ap);
-  va_end(ap);
-
-  if (st == SANITY_FAIL)
-    log->any_failed = true;
-}
+_Static_assert(RCW_DUMP_BYTES == RCW_PBL_RCW_BYTES, "RCWSR snapshot is the PBL image's RCW");
 
 int
 runtime_read_rcw(const soc_info_t *soc, const char *mem_path, uint8_t rcw_out[RCW_DUMP_BYTES], uint32_t *svr_out, char *err, size_t errlen) {
@@ -148,15 +133,15 @@ runtime_sanity_run(const soc_info_t *soc, const char *dt_detail, uint32_t svr, c
 
   /* dt_compat */
   if (dt_detail && dt_detail[0])
-    log_add(log, SANITY_PASS, "dt_compat", "matched %s", soc->compat);
+    sanity_log_add(log,SANITY_PASS, "dt_compat", "matched %s", soc->compat);
   else
-    log_add(log, SANITY_WARN, "dt_compat", "DT compatible unavailable; SoC identified via SVR probe");
+    sanity_log_add(log,SANITY_WARN, "dt_compat", "DT compatible unavailable; SoC identified via SVR probe");
 
   /* svr_match */
   if ((svr & soc->svr_mask) == soc->svr_match)
-    log_add(log, SANITY_PASS, "svr_match", "0x%08x matches expected 0x%08x/0x%08x for %s", svr, soc->svr_match, soc->svr_mask, soc->compat);
+    sanity_log_add(log,SANITY_PASS, "svr_match", "0x%08x matches expected 0x%08x/0x%08x for %s", svr, soc->svr_match, soc->svr_mask, soc->compat);
   else
-    log_add(log, SANITY_FAIL, "svr_match", "0x%08x does not match expected 0x%08x/0x%08x for %s", svr, soc->svr_match, soc->svr_mask, soc->compat);
+    sanity_log_add(log,SANITY_FAIL, "svr_match", "0x%08x does not match expected 0x%08x/0x%08x for %s", svr, soc->svr_match, soc->svr_mask, soc->compat);
 
   /* not_zero */
   size_t nonzero = 0;
@@ -164,9 +149,9 @@ runtime_sanity_run(const soc_info_t *soc, const char *dt_detail, uint32_t svr, c
     if (rcw[i] != 0) nonzero++;
 
   if (nonzero > 0)
-    log_add(log, SANITY_PASS, "not_zero", "%zu/%u bytes nonzero", nonzero, RCW_DUMP_BYTES);
+    sanity_log_add(log,SANITY_PASS, "not_zero", "%zu/%u bytes nonzero", nonzero, RCW_DUMP_BYTES);
   else
-    log_add(log, SANITY_FAIL, "not_zero", "RCW dump is all-zero (likely /dev/mem restriction)");
+    sanity_log_add(log,SANITY_FAIL, "not_zero", "RCW dump is all-zero (likely /dev/mem restriction)");
 
   /* not_ones */
   size_t ones_bytes = 0;
@@ -174,16 +159,16 @@ runtime_sanity_run(const soc_info_t *soc, const char *dt_detail, uint32_t svr, c
     if (rcw[i] == 0xFF) ones_bytes++;
 
   if (ones_bytes < RCW_DUMP_BYTES)
-    log_add(log, SANITY_PASS, "not_ones", "not stuck-high (%zu/%u bytes are 0xFF)", ones_bytes, RCW_DUMP_BYTES);
+    sanity_log_add(log,SANITY_PASS, "not_ones", "not stuck-high (%zu/%u bytes are 0xFF)", ones_bytes, RCW_DUMP_BYTES);
   else
-    log_add(log, SANITY_FAIL, "not_ones", "RCW dump is all-0xFF (likely unmapped region)");
+    sanity_log_add(log,SANITY_FAIL, "not_ones", "RCW dump is all-0xFF (likely unmapped region)");
 
   /* endianness - the SVR readback gives us a sanity check on byte
    * order. If the upper 16 bits of the LE-interpreted value match the
    * SoC family pattern, we're good. If they match when byte-swapped,
    * warn loudly (data would need swapping). */
   if ((svr & soc->svr_mask) == soc->svr_match) {
-    log_add(log, SANITY_PASS, "endianness", "SVR readback is little-endian (matches %s)", soc->compat);
+    sanity_log_add(log,SANITY_PASS, "endianness", "SVR readback is little-endian (matches %s)", soc->compat);
   } else {
     uint32_t swapped =
           ((svr & 0xFF000000u) >> 24)
@@ -192,23 +177,16 @@ runtime_sanity_run(const soc_info_t *soc, const char *dt_detail, uint32_t svr, c
         | ((svr & 0x000000FFu) << 24)
         ;
     if ((swapped & soc->svr_mask) == soc->svr_match)
-      log_add(log, SANITY_WARN, "endianness", "SVR matches when byte-swapped (0x%08x); RCW data may need swapping before decompile", swapped);
+      sanity_log_add(log,SANITY_WARN, "endianness", "SVR matches when byte-swapped (0x%08x); RCW data may need swapping before decompile", swapped);
     else
-      log_add(log, SANITY_WARN, "endianness", "SVR 0x%08x doesn't match either endianness - proceed with caution", svr);
+      sanity_log_add(log,SANITY_WARN, "endianness", "SVR 0x%08x doesn't match either endianness - proceed with caution", svr);
   }
 
-  /* pbi_not_recoverable - informational, always WARN */
-  log_add(log, SANITY_WARN, "pbi_not_recoverable", "PBI commands ran once at boot and are not present in runtime registers");
-}
-
-static const char *
-status_label(sanity_status_t s) {
-  switch (s) {
-    case SANITY_PASS: return "PASS";
-    case SANITY_WARN: return "WARN";
-    case SANITY_FAIL: return "FAIL";
-  }
-  return "????";
+  /* pbi_not_recoverable - informational, always WARN; RCW[PBI_LENGTH]
+   * says how much PBI the bootrom ran */
+  rcw_pbl_t pbl;
+  rcw_pbl_from_rcw(rcw, &pbl);
+  sanity_log_add(log, SANITY_WARN, "pbi_not_recoverable", "RCW[PBI_LENGTH]=%u words of PBI ran once at boot and are not in the registers - use --dump-flash", pbl.pbi_length);
 }
 
 int
@@ -243,7 +221,7 @@ runtime_write_header(FILE *out, const soc_info_t *soc, uint32_t svr, const sanit
 
   for (size_t i = 0; i < log->count; i++) {
     const sanity_entry_t *e = &log->entries[i];
-    fprintf(out, " *   [%s] %-22s : %s\n", status_label(e->status), e->id, e->detail);
+    fprintf(out, " *   [%s] %-22s : %s\n", sanity_status_label(e->status), e->id, e->detail);
   }
 
   fprintf(out,

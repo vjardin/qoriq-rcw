@@ -17,31 +17,12 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include "sanity_log.h"
 #include "soc_db.h"
 
 /* RCW_BYTES is fixed at 128 for pbiformat=2; soc_info_t carries the
  * number too in case future entries deviate. */
 #define RCW_DUMP_BYTES 128u
-
-typedef enum {
-  SANITY_PASS = 0,
-  SANITY_WARN,
-  SANITY_FAIL,
-} sanity_status_t;
-
-typedef struct {
-  sanity_status_t status;
-  const char     *id;       /* short identifier, e.g. "svr_match" */
-  char            detail[160]; /* one-line human description */
-} sanity_entry_t;
-
-#define SANITY_LOG_MAX 16
-
-typedef struct {
-  sanity_entry_t entries[SANITY_LOG_MAX];
-  size_t         count;
-  bool           any_failed;
-} sanity_log_t;
 
 /*
  * Open `mem_path` (typically "/dev/mem"), mmap one page at
